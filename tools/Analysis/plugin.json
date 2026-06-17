@@ -38,7 +38,7 @@
       }
     ]
   },
-  "author": "NASA-AMMOS/MMGIS",
+  "author": "NASA-AMMOS/MMGIS-Plugins",
   "license": "Apache-2.0",
-  "repository": "https://github.com/NASA-AMMOS/MMGIS"
+  "repository": "https://github.com/NASA-AMMOS/MMGIS-Plugins"
 }

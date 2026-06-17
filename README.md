@@ -18,16 +18,20 @@ npm run build
 
 ## Available Plugins
 
-| Plugin          | Type | Tier | Description |
-| --------------- | ---- | ---- | ----------- |
-| _(coming soon)_ |      |      |             |
+| Plugin    | Type | Tier         | Description                                                                   | Notes                            |
+| --------- | ---- | ------------ | ----------------------------------------------------------------------------- | -------------------------------- |
+| Analysis  | tool | experimental | A graphing and analysis tool for data visualization and statistical analysis. | Backend server not yet released. |
+| Chemistry | tool | official     | Display chemistry percentages via graphs of a clicked point.                  |                                  |
+| Curtain   | tool | official     | Curtain views of Ground Penetrating Radar data.                               |                                  |
+| Isochrone | tool | official     | Find the range of locations accessible to an explorer within a given time     |                                  |
+| Segment   | tool | experimental | Segment map features using SAM3 AI model with text prompts.                   | Backend server not yet released. |
 
 ## Plugin Tiers
 
-| Tier             | Meaning                                                     |
-| ---------------- | ----------------------------------------------------------- |
-| **official**     | Fully supported and tested against the latest MMGIS release |
-| **experimental** | Functional but may have breaking changes between releases   |
+| Tier             | Meaning                                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| **official**     | Fully supported and tested against the latest MMGIS release                                        |
+| **experimental** | Functional but may have breaking changes between releases and may rely on unreleased code/services |
 
 ## Structure
 
