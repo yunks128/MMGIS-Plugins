@@ -1,0 +1,19 @@
+{
+  "uuid": "976db0d5-9382-4b2a-bf31-4b7f7a316b27",
+  "id": "official-chemistry",
+  "version": "5.2.0-20260617",
+  "type": "tool",
+  "tier": "official",
+  "overridable": true,
+  "defaultIcon": "flask",
+  "description": "Display chemistry percentages via graphs of a clicked point.",
+  "descriptionFull": {},
+  "hasVars": false,
+  "name": "Chemistry",
+  "paths": {
+    "ChemistryTool": "../plugins/official/tools/Chemistry/ChemistryTool"
+  },
+  "author": "NASA-AMMOS/MMGIS",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NASA-AMMOS/MMGIS"
+}
