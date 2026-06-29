@@ -5,8 +5,8 @@
    - Same backend contract (/api/agent, /api/agent/tools).
 */
 
-import L_ from '../../Basics/Layers_/Layers_'
-import TimeControl from '../../Basics/TimeControl_/TimeControl'
+import L_ from '@basics/Layers_/Layers_'
+import TimeControl from '@basics/TimeControl_/TimeControl'
 import * as d3 from 'd3'
 import RENDERERS, {
     fast_visible_layers_time as fastVisibleLayersTime,

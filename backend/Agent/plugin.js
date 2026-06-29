@@ -5,8 +5,10 @@ const router = require("./routes/agent");
 
 if (!process.env.WITH_AGENT || process.env.WITH_AGENT.toLowerCase() !== "true") {
   module.exports = { onceInit: () => {}, alwaysRun: () => {} };
-  const logger = require("../../../API/logger");
-  logger("info", "Agent plugin disabled (WITH_AGENT != true). Skipping route mount.", "AgentSetup");
+  let logger;
+  try { logger = require(path.join(process.cwd(), "API/logger")); } catch (_) {}
+  if (logger) logger("info", "Agent plugin disabled (WITH_AGENT != true). Skipping route mount.", "AgentSetup");
+  else console.info("[Agent] Plugin disabled (WITH_AGENT != true). Skipping route mount.");
   return;
 }
 

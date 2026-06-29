@@ -4,7 +4,7 @@ import {
     booleanPointInPolygon,
     point as turfPoint,
 } from '@turf/turf'
-import L_ from '../../Basics/Layers_/Layers_'
+import L_ from '@basics/Layers_/Layers_'
 
 const DEFAULT_MAX_PIXELS = 600000
 const DEFAULT_MAX_MASK_POINTS = 2000

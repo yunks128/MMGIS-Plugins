@@ -1,9 +1,9 @@
 import $ from 'jquery'
-import L_ from '../../Basics/Layers_/Layers_'
-import TimeControl from '../../Basics/TimeControl_/TimeControl'
-import LayersTool from '../../Tools/Layers/LayersTool'
-import LegendTool from '../../Tools/Legend/LegendTool'
-import TimeUI from '../../Basics/TimeControl_/TimeUI'
+import L_ from '@basics/Layers_/Layers_'
+import TimeControl from '@basics/TimeControl_/TimeControl'
+import LayersTool from '@essence/Tools/Layers/LayersTool'
+import LegendTool from '@essence/Tools/Legend/LegendTool'
+import TimeUI from '@basics/TimeControl_/TimeUI'
 import {
     parseTimeQuery,
     getLayerTimeMetadata,
