@@ -1,5 +1,5 @@
 const Sequelize = require("sequelize");
-const { sequelize } = require("../../../connection");
+const { sequelize } = require(require("path").join(process.cwd(), "API/connection"));
 
 const AgentTool = sequelize.define(
   "agent_tools",

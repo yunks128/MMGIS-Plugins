@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
-const Config = require(require("path").join(process.cwd(), "Backend/Config/models/config"));
+const Config = require(require("path").join(process.cwd(), "API/Backend/Config/models/config"));
 const AgentConversation = require("../models/agentConversation");
 const { planWithProvider, streamWithProvider } = require("../provider");
 const { resolveRegion } = require("../regionResolver");
@@ -1409,7 +1409,7 @@ router.post("/tools/register", express.json(), async (req, res) => {
     await reloadRegistry(req.app);
     // Broadcast tool registry change via WebSocket
     try {
-      const { websocket } = require(require("path").join(process.cwd(), "websocket"));
+      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
       if (websocket.wss) {
         websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
       }
@@ -1437,7 +1437,7 @@ router.put("/tools/:name", express.json(), async (req, res) => {
     await tool.update(updates);
     await reloadRegistry(req.app);
     try {
-      const { websocket } = require(require("path").join(process.cwd(), "websocket"));
+      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
       if (websocket.wss) {
         websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
       }
@@ -1464,7 +1464,7 @@ router.delete("/tools/:name", async (req, res) => {
     }
     await reloadRegistry(req.app);
     try {
-      const { websocket } = require(require("path").join(process.cwd(), "websocket"));
+      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
       if (websocket.wss) {
         websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
       }

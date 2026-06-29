@@ -1,5 +1,5 @@
 const Sequelize = require("sequelize");
-const { sequelize } = require("../../../connection");
+const { sequelize } = require(require("path").join(process.cwd(), "API/connection"));
 
 const AgentConversation = sequelize.define(
   "agent_conversations",
@@ -13,7 +13,7 @@ const AgentConversation = sequelize.define(
     missionName: {
       type: Sequelize.STRING,
       allowNull: false,
-      defaultValue: "frozon",
+      defaultValue: "",
     },
     azureThreadId: {
       type: Sequelize.STRING,

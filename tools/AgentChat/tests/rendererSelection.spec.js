@@ -1,4 +1,4 @@
-import { RENDERERS } from '../../AgentChat/renderers'
+import { RENDERERS } from '../renderers'
 
 describe('renderer selection shape', () => {
   test('has required renderer functions', () => {
