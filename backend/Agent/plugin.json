@@ -16,9 +16,22 @@
       "GEMINI_API_KEY": "(string) Google Gemini API key"
     }
   },
-  "paths": {
-    "setup": "./setup.js",
-    "routes": "./routes/agent.js"
+  "priority": 900,
+  "routes": {
+    "prefix": "/api/agent",
+    "auth": true
+  },
+  "envs": {
+    "WITH_AGENT": "(string) Set to 'true' to enable the Agent plugin; any other value disables it",
+    "LLM_PROVIDER": "(string) 'azure' or 'gemini' — selects the active LLM provider [default 'azure']",
+    "AZURE_AI_ENDPOINT": "(string) Azure AI Foundry project endpoint URL",
+    "AZURE_AI_API_KEY": "(string) Azure AI Foundry API key (used when AZURE_CLIENT_ID is not set)",
+    "AZURE_CLIENT_ID": "(string) Azure Managed Identity / Service Principal client ID (alternative to API key)",
+    "AZURE_AGENT_MODEL": "(string) Model deployment name in Azure AI Foundry [default 'gpt-4o']",
+    "GEMINI_API_KEY": "(string) Google Gemini API key",
+    "GEMINI_MODEL": "(string) Gemini model name [default 'gemini-2.0-flash']",
+    "MMGIS_PYTHON": "(string) Path to Python executable for raster analysis [default 'python3']",
+    "FROZON_DEFAULT_MISSION": "(string) Default mission name used when none is supplied in requests"
   },
   "config": {
     "rows": [
