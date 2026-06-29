@@ -1,15 +1,15 @@
 {
   "uuid": "54820d32-93b3-4cd9-9f78-73941ea70534",
-  "id": "experimental-analysis-ai-agent",
-  "version": "5.0.14-20260526",
+  "id": "official-analysis",
+  "version": "5.2.0-20260617",
   "type": "tool",
   "tier": "experimental",
-  "engines": { "mmgis": ">=5.0.0" },
+  "engines": { "mmgis": ">=5.2.0" },
   "overridable": true,
   "defaultIcon": "chart-line",
-  "description": "A graphing and analysis tool for data visualization and statistical analysis of layer data, extended for AI-agent workflows.",
+  "description": "A graphing and analysis tool for data visualization and statistical analysis.",
   "descriptionFull": {
-    "title": "Provides graphing and analysis capabilities using ECharts and D3 for interactive data visualization and statistical analysis of layer data. Extended to integrate with the MMGIS AI Agent backend.",
+    "title": "Provides graphing and analysis capabilities using ECharts for interactive data visualization and statistical analysis of layer data.",
     "example": {
       "width": "(number) custom panel width in pixels [default 350]",
       "expanded": "(bool) initial state expanded [default true]",
@@ -39,13 +39,7 @@
       }
     ]
   },
-  "dependencies": {
-    "npm": {
-      "d3": "^7.9.0",
-      "echarts": "^5.4.3"
-    }
-  },
-  "author": "yunks128",
+  "author": "NASA-AMMOS/MMGIS-Plugins",
   "license": "Apache-2.0",
-  "repository": "https://github.com/yunks128/MMGIS-Plugin-Tools-AI-Agent"
+  "repository": "https://github.com/NASA-AMMOS/MMGIS-Plugins"
 }
