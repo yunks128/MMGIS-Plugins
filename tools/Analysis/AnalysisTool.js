@@ -1,12 +1,12 @@
 import $ from 'jquery'
 import * as d3 from 'd3'
 import * as echarts from 'echarts'
-import F_ from '../../Basics/Formulae_/Formulae_'
-import L_ from '../../Basics/Layers_/Layers_'
-import Map_ from '../../Basics/Map_/Map_'
+import F_ from '@basics/Formulae_/Formulae_'
+import L_ from '@basics/Layers_/Layers_'
+import Map_ from '@basics/Map_/Map_'
 
-import Help from '../../Basics/UserInterface_/components/Help/Help'
-import TimeControl from '../../Basics/TimeControl_/TimeControl'
+import Help from '@basics/UserInterface_/components/Help/Help'
+import TimeControl from '@basics/TimeControl_/TimeControl'
 
 import './AnalysisTool.css'
 
@@ -17,10 +17,10 @@ const NODATA = 0
 // prettier-ignore
 var markup = [
     "<div id='analysisTool'>",
-        "<div id='analysisToolHeader'>",
+        "<div id='analysisToolHeader' class='mmgisToolHeader'>",
             "<div id='filterAnalysis'>",
                 "<div class='left'>",
-                    '<div id="title">Analysis</div>',
+                    '<div class="mmgisToolTitle">Analysis</div>',
                     Help.getComponent(helpKey),
                 "</div>",
                 "<div class='right'>",
@@ -238,7 +238,7 @@ var markup = [
     "</div>",
 ].join('\n')
 
-var AnalysisTool = {
+let AnalysisTool = {
     height: 0,
     width: 650,
     vars: {},
@@ -250,7 +250,7 @@ var AnalysisTool = {
     resizeHandler: null,
     resizeObserver: null,
     //apiBaseUrl: `${window.location.origin}${(window.location.pathname || '').replace(/\/$/g, '')}/frozon_api`,
-    apiBaseUrl: 'https://ammos.nasa.gov/frozon/frozon_api',
+    apiBaseUrl: '', // Set in initialize() from tool configuration
     // Layer management
     availableLayers: {},
     selectedLayer: null,
@@ -288,7 +288,18 @@ var AnalysisTool = {
     },
     initialize: function () {
         //Get tool variables
-        this.vars = L_.getToolVars('analysis')
+        const toolVars = L_.getToolVars('analysis') || {}
+        this.vars = {
+            apiBaseUrl: toolVars.apiBaseUrl || ''
+        }
+
+        // Update the apiBaseUrl with configured value
+        this.apiBaseUrl = this.vars.apiBaseUrl
+
+        // Validate that URL is configured
+        if (!this.apiBaseUrl) {
+            console.warn('Analysis Tool: API Base URL not configured. Please configure it in the mission settings.')
+        }
     },
     finalize: function () {
         // Any finalization logic can go here
@@ -5150,7 +5161,7 @@ function interfaceWithMMGIS(fromInit) {
         AnalysisTool.updateGenerateButtonState()
     }
 
-    // Subscribe to TimeControl changes like ShadeTool does
+    // Subscribe to TimeControl changes like SightlineTool does
     TimeControl.subscribe('AnalysisTool', (t) => {
         AnalysisTool.timeChange()
     })
