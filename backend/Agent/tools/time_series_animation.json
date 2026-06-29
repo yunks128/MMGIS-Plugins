@@ -1,0 +1,49 @@
+{
+  "type": "function",
+  "function": {
+    "name": "time_series_animation",
+    "description": "Create temporal animations showing ice evolution over time. Provides playback controls and frame-by-frame visualization of changes.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "layer_name": {
+          "type": "string",
+          "description": "The name of the layer to animate (e.g., 'SWOT freeboard', 'ICESat-2 thickness')"
+        },
+        "time_start": {
+          "type": "string",
+          "description": "Start time for animation in ISO format (e.g., '2024-01-01'). Defaults to '2024-01-01'."
+        },
+        "time_end": {
+          "type": "string",
+          "description": "End time for animation in ISO format (e.g., '2024-12-31'). Defaults to '2024-12-31'."
+        },
+        "interval": {
+          "type": "string",
+          "enum": ["hourly", "daily", "weekly", "monthly", "quarterly", "yearly"],
+          "description": "Time interval between frames (default 'monthly')"
+        },
+        "frame_rate": {
+          "type": "number",
+          "description": "Milliseconds per frame (default 1000ms). Lower values = faster animation."
+        },
+        "loop_mode": {
+          "type": "string",
+          "enum": ["once", "loop", "bounce"],
+          "description": "Animation loop behavior (default 'loop')"
+        },
+        "auto_play": {
+          "type": "boolean",
+          "description": "Whether to automatically start playing the animation (default false)"
+        }
+      },
+      "required": ["layer_name"]
+    }
+  },
+  "ui": {
+    "type": "render",
+    "renderer": "time_series_animation",
+    "title": "Creating Time Series Animation",
+    "details": "Setting up temporal animation with playback controls"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "type": "function",
+  "function": {
+    "name": "cross_section",
+    "description": "Extract elevation or thickness profile along a user-defined transect. Shows values along a path between two points with distance markers. Requires a layer name - use available layers like 'SWOT Monthly Freeboard', 'ICESat-2 freeboard', or ask user to specify which layer to analyze.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "layer_name": {
+          "type": "string",
+          "description": "The name of the layer to analyze (e.g., 'SWOT freeboard', 'ICESat-2 thickness')"
+        },
+        "start_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Starting coordinates as [longitude, latitude] (e.g., [-150, 75])"
+        },
+        "end_point": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Ending coordinates as [longitude, latitude] (e.g., [-40, 72])"
+        },
+        "start_location": {
+          "type": "string",
+          "description": "Named starting location (e.g., 'Alaska', 'Beaufort Sea'). Alternative to start_point."
+        },
+        "end_location": {
+          "type": "string",
+          "description": "Named ending location (e.g., 'Greenland', 'Norway'). Alternative to end_point."
+        },
+        "num_samples": {
+          "type": "number",
+          "description": "Number of sample points along the transect (default 100)"
+        },
+        "include_stats": {
+          "type": "boolean",
+          "description": "Whether to calculate statistics for the profile (default true)"
+        },
+        "visualize": {
+          "type": "boolean",
+          "description": "Whether to draw the transect line on the map (default true)"
+        },
+        "geographical_area": {
+          "type": "string",
+          "description": "Named area to help interpret the transect (e.g., 'Beaufort Sea', 'Arctic Ocean')"
+        },
+        "original_query": {
+          "type": "string",
+          "description": "Original user query for context"
+        },
+        "start_coordinates": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Starting coordinates as [longitude, latitude]"
+        },
+        "end_coordinates": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Ending coordinates as [longitude, latitude]"
+        },
+        "start_coords": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Starting coordinates as [longitude, latitude]"
+        },
+        "end_coords": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Ending coordinates as [longitude, latitude]"
+        }
+      },
+      "required": ["layer_name"]
+    }
+  },
+  "ui": {
+    "type": "render",
+    "renderer": "cross_section",
+    "title": "Extracting Cross-Section Profile",
+    "details": "Analyzing elevation/thickness along the specified transect"
+  }
+}

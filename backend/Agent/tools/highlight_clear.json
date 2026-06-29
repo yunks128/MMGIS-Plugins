@@ -1,0 +1,8 @@
+{
+  "name": "highlight_clear",
+  "description": "Remove the temporary highlight overlay.",
+  "parameters": { "type": "object", "additionalProperties": false },
+  "modelParameters": { "type": "object", "additionalProperties": false },
+  "execution": { "adapter": "custom", "ui": { "type": "highlight_clear" } }
+}
+

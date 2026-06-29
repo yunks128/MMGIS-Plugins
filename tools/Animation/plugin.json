@@ -1,0 +1,35 @@
+{
+  "uuid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "id": "experimental-animation",
+  "version": "5.0.14-20260526",
+  "type": "tool",
+  "tier": "experimental",
+  "engines": { "mmgis": ">=5.0.0" },
+  "overridable": true,
+  "defaultIcon": "video",
+  "description": "Create animated sequences of map data with custom time ranges and export as GIF or MP4.",
+  "descriptionFull": {
+    "title": "The Animation tool allows users to create smooth animated sequences of map data by selecting a bounding box area, defining a time range, and configuring playback options. Users can export animations as GIF, MP4, or other formats."
+  },
+  "hasVars": false,
+  "name": "Animation",
+  "toolbarPriority": 1002,
+  "paths": {
+    "AnimationTool": "./AnimationTool"
+  },
+  "expandable": true,
+  "config": {
+    "rows": []
+  },
+  "dependencies": {
+    "npm": {
+      "@ffmpeg/ffmpeg": "^0.12.10",
+      "@ffmpeg/util": "^0.12.1",
+      "gifshot": "^0.4.5",
+      "html2canvas": "^1.4.1"
+    }
+  },
+  "author": "yunks128",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/yunks128/MMGIS-Plugin-Tools-AI-Agent"
+}
