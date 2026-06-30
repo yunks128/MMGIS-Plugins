@@ -48,20 +48,28 @@ import {
     logLocalAnalyticsEvent,
 } from './localAnalytics'
 
-const AREA_PRESETS = {
-    'beaufort sea': {
-        label: 'Beaufort Sea',
-        bbox: [-160, 70, -120, 76],
-    },
-    'gulf of mexico': {
-        label: 'Gulf of Mexico',
-        bbox: [-97.5, 18.0, -80.5, 30.5],
-    },
-    'great lakes': {
-        label: 'Great Lakes',
-        bbox: [-92.5, 41.0, -75.0, 49.0],
-    },
+const DEFAULT_AREA_PRESETS = {
+    'beaufort sea': { label: 'Beaufort Sea', bbox: [-160, 70, -120, 76] },
+    'chukchi sea': { label: 'Chukchi Sea', bbox: [-180, 65, -155, 76] },
+    'arctic ocean': { label: 'Arctic Ocean', bbox: [-180, 70, 180, 90] },
+    'gulf of mexico': { label: 'Gulf of Mexico', bbox: [-97.5, 18.0, -80.5, 30.5] },
+    'great lakes': { label: 'Great Lakes', bbox: [-92.5, 41.0, -75.0, 49.0] },
+    'north atlantic': { label: 'North Atlantic', bbox: [-80, 30, 0, 70] },
+    'north pacific': { label: 'North Pacific', bbox: [120, 30, -120, 65] },
 }
+
+// Mission-specific presets can be injected via window.mmgisAgentAreaPresets
+// (plain object keyed by lowercase region name, same shape as DEFAULT_AREA_PRESETS).
+function getAreaPresets() {
+    const overrides = (typeof window !== 'undefined' && window.mmgisAgentAreaPresets) || {}
+    return { ...DEFAULT_AREA_PRESETS, ...overrides }
+}
+
+// Keep AREA_PRESETS as a convenience alias resolved at call time.
+const AREA_PRESETS = new Proxy({}, {
+    get(_, key) { return getAreaPresets()[key] },
+    has(_, key) { return key in getAreaPresets() },
+})
 
 function appendLine(text) {
     if (typeof window.__mmgisAgentChatAppend === 'function') {
@@ -157,15 +165,10 @@ const analyticsLayerCatalogPromises = new Map()
 
 function getAnalyticsBaseUrl() {
     const override =
-        (window?.frozonAnalyticsBase &&
-            String(window.frozonAnalyticsBase).trim()) ||
-        (window?.mmgisglobal?.FROZON_ANALYTICS_BASE_URL &&
-            String(window.mmgisglobal.FROZON_ANALYTICS_BASE_URL).trim()) ||
         (window?.mmgisglobal?.ANALYTICS_BASE_URL &&
-            String(window.mmgisglobal.ANALYTICS_BASE_URL).trim())
+            String(window.mmgisglobal.ANALYTICS_BASE_URL).trim()) || ''
     const root = (window?.mmgisglobal?.ROOT_PATH || '').replace(/\/+$/, '')
-    const base =
-        override && override.length ? override : `${root}/api/agent/analytics`
+    const base = override.length ? override : `${root}/api/agent/analytics`
     return base.replace(/\/+$/, '')
 }
 
@@ -2361,7 +2364,7 @@ export async function render_anomaly_detection(_ctx, payload) {
     const area = payload?.geographical_area || payload?.area || 'Arctic Ocean'
     const timeStr = payload?.time_start ? ` for ${payload.time_start}` : ' for November 2024'
     
-    // Simulated statistics based on typical SWOT freeboard values
+    // Simulated statistics (placeholder until real analytics backend is wired)
     const simulatedStats = {
         mean: 1.234,
         std: 0.456,
@@ -2853,6 +2856,132 @@ export async function list_analyzable_layers(_ctx, payload) {
     }
 }
 
+export async function render_open_animation_tool(_ctx, payload) {
+    const layerName = payload?.layer_name || payload?.layer
+    if (!layerName) throw new Error('open_animation_tool requires layer_name.')
+
+    // Enable the target layer
+    const index = buildLayerIndex()
+    const layerMatch = findLayerMatch(layerName, index)
+    if (layerMatch) {
+        try { window.mmgisAPI?.toggleLayer(layerMatch.id, true) } catch (_) {}
+    }
+
+    // Set time range via TimeControl if dates provided
+    const startDate = payload?.start_date || payload?.time_start
+    const endDate = payload?.end_date || payload?.time_end
+    if (startDate) {
+        try { TimeControl.setTime?.(startDate, endDate || startDate) } catch (_) {}
+    }
+
+    // Zoom to named region if provided
+    const regionKey = (payload?.region || '').toLowerCase().trim()
+    const preset = AREA_PRESETS[regionKey]
+    if (preset) {
+        try {
+            window.mmgisAPI?.map?.fitBounds([
+                [preset.bbox[1], preset.bbox[0]],
+                [preset.bbox[3], preset.bbox[2]],
+            ])
+        } catch (_) {}
+    }
+
+    // Open Animation tool via ToolController_
+    const controller = window.ToolController_
+    if (controller && Array.isArray(controller.toolModuleNames)) {
+        const idx = controller.toolModuleNames.indexOf('AnimationTool')
+        if (idx !== -1) controller.makeTool('AnimationTool', idx)
+    }
+
+    const displayName = layerMatch?.displayName || layerName
+    const format = (payload?.format || 'GIF').toUpperCase()
+    const parts = [`Animation Tool opened for: ${displayName}`]
+    if (preset?.label || payload?.region) parts.push(`Region: ${preset?.label || payload.region}`)
+    if (startDate && endDate) parts.push(`Time range: ${startDate} → ${endDate}`)
+    parts.push(`Draw a bounding box on the map in the Animation panel, then click Export ${format}.`)
+    const msg = parts.join('\n')
+    appendLine(msg)
+    return msg
+}
+
+export async function render_run_analysis(_ctx, payload) {
+    const layerName = payload?.layer_name || payload?.layer
+    if (!layerName) throw new Error('run_analysis requires layer_name.')
+
+    // Enable the target layer
+    const index = buildLayerIndex()
+    const layerMatch = findLayerMatch(layerName, index)
+    if (layerMatch) {
+        try { window.mmgisAPI?.toggleLayer(layerMatch.id, true) } catch (_) {}
+    }
+
+    // Open Analysis tool via ToolController_
+    const controller = window.ToolController_
+    let toolOpened = false
+    if (controller && Array.isArray(controller.toolModuleNames)) {
+        const idx = controller.toolModuleNames.indexOf('AnalysisTool')
+        if (idx !== -1) {
+            controller.makeTool('AnalysisTool', idx)
+            toolOpened = true
+        }
+    }
+
+    if (!toolOpened) {
+        const msg = 'Analysis Tool is not available. Please open it from the toolbar.'
+        appendLine(msg)
+        return msg
+    }
+
+    // Wait for tool DOM to initialize after make()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
+    const startDate = payload?.start_date || payload?.time_start
+    const endDate = payload?.end_date || payload?.time_end
+    const chartType = payload?.chart_type || 'timeseries'
+    const mode = payload?.mode || 'bbox'
+    const displayName = layerMatch?.displayName || layerName
+
+    // Pre-fill time inputs
+    if (startDate) $('#analysisStartTime').val(startDate)
+    if (endDate) $('#analysisEndTime').val(endDate)
+
+    // Set chart type and sampling mode
+    $('#analysisChartTypeSelect').val(chartType)
+    $('#analysisDataModeSelect').val(mode).trigger('change')
+
+    // Select matching layer in dropdown (case-insensitive partial match)
+    const $sel = $('#analysisLayerSelect')
+    const nameLower = displayName.toLowerCase()
+    $sel.find('option').each(function () {
+        const optText = $(this).text().toLowerCase()
+        const optVal = ($(this).val() || '').toLowerCase()
+        if (optText.includes(nameLower) || nameLower.includes(optVal)) {
+            $sel.val($(this).val())
+            return false // break
+        }
+    })
+    $sel.trigger('change')
+
+    // Trigger analysis if the generate button is enabled
+    const $btn = $('#analysisGenerateBtn')
+    if ($btn.length && !$btn.prop('disabled')) {
+        $btn.trigger('click')
+        const timeLabel = startDate && endDate ? ` (${startDate} → ${endDate})` : ''
+        const msg = `Running ${chartType} analysis for ${displayName}${timeLabel}. Results will appear in the Analysis panel.`
+        appendLine(msg)
+        return msg
+    }
+
+    // Fallback: tool is open but generate not yet available (user needs bbox or coords)
+    const msg = [
+        `Analysis Tool opened for: ${displayName} [${chartType}]`,
+        startDate && endDate ? `Time range: ${startDate} → ${endDate}` : null,
+        mode === 'bbox' ? 'Draw a bounding box on the map, then click Generate Analysis.' : 'Click a point on the map, then click Generate Analysis.',
+    ].filter(Boolean).join('\n')
+    appendLine(msg)
+    return msg
+}
+
 const RENDERERS = {
     layers_line: render_layers_line,
     set_visible_layers_time: set_visible_layers_time,
@@ -2876,6 +3005,8 @@ const RENDERERS = {
     cross_section: render_cross_section,
     data_export: render_data_export,
     list_analyzable_layers: list_analyzable_layers,
+    open_animation_tool: render_open_animation_tool,
+    run_analysis: render_run_analysis,
 }
 
 export default RENDERERS

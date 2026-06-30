@@ -1,0 +1,54 @@
+{
+  "name": "run_analysis",
+  "description": "Open the Analysis Tool for a layer and run an interactive chart analysis (time-series, histogram, or scatter plot) over a time range and region.",
+  "parameters": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["layer_name"],
+    "properties": {
+      "layer_name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Display name of the layer to analyze."
+      },
+      "chart_type": {
+        "type": "string",
+        "enum": ["timeseries", "histogram", "scatterplot"],
+        "description": "Type of analysis chart (default: 'timeseries')."
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["point", "bbox"],
+        "description": "Spatial sampling mode: 'point' for a single coordinate, 'bbox' for a bounding box region (default: 'bbox')."
+      },
+      "start_date": {
+        "type": "string",
+        "description": "Analysis start date in ISO format (e.g. '2024-01-01')."
+      },
+      "end_date": {
+        "type": "string",
+        "description": "Analysis end date in ISO format (e.g. '2024-12-31')."
+      },
+      "region": {
+        "type": "string",
+        "description": "Named geographic region or 'current view' for the analysis extent."
+      }
+    }
+  },
+  "modelParameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "layer_name": { "type": "string" },
+      "chart_type": { "type": "string" },
+      "mode": { "type": "string" },
+      "start_date": { "type": "string" },
+      "end_date": { "type": "string" },
+      "region": { "type": "string" }
+    }
+  },
+  "execution": {
+    "adapter": "custom",
+    "ui": { "type": "run_analysis" }
+  }
+}

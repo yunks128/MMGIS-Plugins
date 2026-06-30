@@ -31,10 +31,10 @@ const TOPBAR_WRAPPER_ID = 'mmgisCopilotTopbarWrapper'
 const DEFAULT_DEMO_QUERIES = [
     'What is MMGIS?',
     'List layers',
-    'Turn on SWOT binned Freeboard',
-    'Show statistics of SWOT freeboard for the full layer extent',
-    'Highlight areas where SWOT daily freeboard exceeds 0.1m',
-    'Focus on the Chukchi Sea Region',
+    'Which layers can I analyze?',
+    'Show statistics of the first visible layer',
+    'Move the time slider to the latest date',
+    'Zoom to the current area of interest',
 ]
 // Base suggestions that work regardless of layers
 const BASE_COPILOT_SUGGESTIONS = [
@@ -45,9 +45,8 @@ const BASE_COPILOT_SUGGESTIONS = [
     'What time range is available for the current layer?',
     'Move the time slider to the latest date',
     'Set time to January 2024',
-    'Zoom to the Beaufort Sea and list visible layers',
-    'Show statistics of SWOT freeboard for the full layer extent',
-    'Highlight areas where SWOT daily freeboard exceeds 0.1m',
+    'Show statistics of the first visible data layer',
+    'Highlight areas where the current layer exceeds its average value',
 ]
 const ZOOM_SUGGESTION_REGIONS = [
     'Arctic Ocean',
@@ -81,42 +80,26 @@ function buildDynamicLayerSuggestions() {
         const layers = Object.values(L_.layers.data)
         const layerNames = layers.map(l => l.display_name || l.displayName || l.name).filter(Boolean)
         
-        // Find specific types of layers for targeted suggestions
-        const swotLayers = layerNames.filter(name => name.toLowerCase().includes('swot'))
-        const icesatLayers = layerNames.filter(name => name.toLowerCase().includes('icesat'))
-        const seaIceLayers = layerNames.filter(name => name.toLowerCase().includes('sea ice'))
-        const freeboardLayers = layerNames.filter(name => name.toLowerCase().includes('freeboard'))
-        
-        // Generate layer-specific suggestions
-        if (swotLayers.length > 0) {
-            suggestions.push(`Toggle on the ${swotLayers[0]}`)
-            suggestions.push(`Show statistics for ${swotLayers[0]}`)
-            if (freeboardLayers.length > 0) {
-                suggestions.push(`Highlight areas where SWOT daily freeboard exceeds 0.1m`)
-                suggestions.push(`Show statistics of SWOT freeboard for the full layer extent`)
-                suggestions.push(`Animate ${swotLayers[0]} over time`)
-            }
+        // Build suggestions from whatever layers are actually present
+        const visibleLayers = layers
+            .filter(l => l.isVisible || l.visible)
+            .map(l => l.display_name || l.displayName || l.name)
+            .filter(Boolean)
+
+        const firstVisible = visibleLayers[0]
+        if (firstVisible) {
+            suggestions.push(`Show statistics for ${firstVisible}`)
+            suggestions.push(`Animate ${firstVisible} over time`)
+            suggestions.push(`Highlight areas where ${firstVisible} exceeds its average value`)
         }
-        
-        if (icesatLayers.length > 0 && swotLayers.length > 0) {
-            suggestions.push(`What is the difference between ${swotLayers[0]} and ${icesatLayers[0]}?`)
+
+        if (layerNames.length >= 2) {
+            suggestions.push(`What is the difference between ${layerNames[0]} and ${layerNames[1]}?`)
         }
-        
-        if (seaIceLayers.length > 0) {
-        }
-        
-        // Add general layer suggestions for whatever is available
-        const analyzableLayers = layerNames.filter(name => {
-            const lower = name.toLowerCase()
-            return lower.includes('swot') || lower.includes('icesat') || 
-                   lower.includes('concentration') || lower.includes('snow') ||
-                   lower.includes('freeboard') || lower.includes('sentinel')
-        })
-        
-        if (analyzableLayers.length > 0) {
-            const randomLayer = analyzableLayers[Math.floor(Math.random() * analyzableLayers.length)]
-            suggestions.push(`Calculate mean for ${randomLayer}`)
-            suggestions.push(`Highlight areas where ${randomLayer} exceeds 0.1m`)
+
+        if (layerNames.length > 0) {
+            const pick = layerNames[Math.floor(Math.random() * layerNames.length)]
+            suggestions.push(`Calculate mean for ${pick}`)
         }
     }
     
@@ -1933,10 +1916,19 @@ function interfaceWithMMGIS() {
     }
 
     async function hideConflictingLayersForTarget(targetId, queryText, entry) {
+        // Mission-specific conflict rules can be provided via window.mmgisAgentLayerConflicts:
+        // An array of { trigger: /regex/, conflicts: /regex/ } objects.
+        // If no mission provides rules, we skip conflict resolution entirely.
+        const conflictRules = (typeof window !== 'undefined' && window.mmgisAgentLayerConflicts) || []
+        if (!conflictRules.length) return []
+
         const normalizedQuery = normalizeName(queryText)
-        if (!/\bswot\b/.test(normalizedQuery)) return []
         const api = window.mmgisAPI
         if (!api) return []
+
+        const matchingRules = conflictRules.filter(r => r.trigger && r.trigger.test(normalizedQuery))
+        if (!matchingRules.length) return []
+
         const visible = api.getVisibleLayers?.() || {}
         const configs = api.getLayerConfigs?.() || {}
         const turnedOff = []
@@ -1956,13 +1948,7 @@ function interfaceWithMMGIS() {
                     .filter(Boolean)
                     .join(' ')
             )
-            const hasSwot = /\bswot\b/.test(haystack)
-            const hasSeaIce =
-                /\bsea\s*ice\b/.test(haystack) || haystack.includes('seaice')
-            const hasIcesat = /\bicesat\b/.test(haystack)
-            const hasFreeboard = /\bfreeboard\b/.test(haystack)
-            const shouldDisable =
-                hasSeaIce || hasIcesat || (hasFreeboard && !hasSwot)
+            const shouldDisable = matchingRules.some(r => r.conflicts && r.conflicts.test(haystack))
             if (!shouldDisable) continue
             try {
                 await api.toggleLayer(id, false)
@@ -1980,7 +1966,7 @@ function interfaceWithMMGIS() {
         if (turnedOff.length && entry) {
             addNoteToAssistant(
                 entry,
-                `Also turned off conflicting non-SWOT layer(s): ${turnedOff
+                `Also turned off conflicting layer(s): ${turnedOff
                     .map((layer) => layer.name)
                     .join(', ')}.`
             )
@@ -2314,11 +2300,14 @@ function interfaceWithMMGIS() {
 
             // Analysis follow-ups
             if (userContent.includes('analyze') || userContent.includes('mean') || userContent.includes('statistic')) {
-                contextualSuggestions.push(
-                    'Highlight areas where SWOT daily freeboard exceeds 0.1m',
-                    'Show statistics of SWOT freeboard for the full layer extent',
-                    'Compare with other layers'
-                )
+                const analyzeLayer = currentLayers[0]
+                if (analyzeLayer) {
+                    contextualSuggestions.push(
+                        `Show statistics of ${analyzeLayer} for the full layer extent`,
+                        `Highlight areas where ${analyzeLayer} exceeds its average value`
+                    )
+                }
+                contextualSuggestions.push('Compare with other layers')
             }
 
             // Geographic follow-ups
@@ -2330,22 +2319,17 @@ function interfaceWithMMGIS() {
                 )
             }
 
-            // Dynamic layer-specific follow-ups based on actual data
-            const hasSwot = currentLayers.some(l => l.toLowerCase().includes('swot'))
-            const hasIcesat = currentLayers.some(l => l.toLowerCase().includes('icesat'))
-            const hasFreeboard = currentLayers.some(l => l.toLowerCase().includes('freeboard'))
-            
-            if (userContent.includes('ice') || userContent.includes('thickness') || userContent.includes('freeboard')) {
-                if (hasSwot && hasIcesat) {
-                    contextualSuggestions.push('Compare SWOT vs ICESat-2 data')
-                }
-                if (hasFreeboard) {
-                    contextualSuggestions.push('Highlight areas where SWOT daily freeboard exceeds 0.1m')
-                }
-                const iceLayer = currentLayers.find(l => l.toLowerCase().includes('ice') || l.toLowerCase().includes('concentration'))
-                if (iceLayer) {
-                    contextualSuggestions.push(`Show ${iceLayer} changes`)
-                }
+            // Dynamic layer-specific follow-ups based on actual visible layers
+            if (currentLayers.length >= 2) {
+                contextualSuggestions.push(`Compare ${currentLayers[0]} vs ${currentLayers[1]}`)
+            }
+            const matchedLayer = currentLayers.find(l => {
+                const lc = l.toLowerCase()
+                return userContent.split(' ').some(word => word.length > 3 && lc.includes(word))
+            })
+            if (matchedLayer) {
+                contextualSuggestions.push(`Show ${matchedLayer} changes over time`)
+                contextualSuggestions.push(`Highlight areas where ${matchedLayer} exceeds its average value`)
             }
         }
 

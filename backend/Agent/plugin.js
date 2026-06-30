@@ -211,12 +211,9 @@ function getDynamicLayerInfo(missionPath) {
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const LAYER_INFO_PATH = path.join(
-  process.cwd(),
-  "Missions",
-  process.env.MAIN_MISSION || "frozon",
-  "layer_info.txt"
-);
+const LAYER_INFO_PATH = process.env.MAIN_MISSION
+  ? path.join(process.cwd(), "Missions", process.env.MAIN_MISSION, "layer_info.txt")
+  : null;
 
 let setup = {
   //Once the app initializes
@@ -258,7 +255,7 @@ let setup = {
     
     // Middleware to load mission-specific layer info (with 5-minute TTL)
     s.app.use((req, res, next) => {
-      const mission = req.query?.mission || req.body?.mission || process.env.FROZON_DEFAULT_MISSION || 'frozon';
+      const mission = req.query?.mission || req.body?.mission || process.env.MAIN_MISSION || '';
 
       const cached = s.app.locals.agentLayerInfoCache[mission];
       const now = Date.now();
@@ -268,17 +265,18 @@ let setup = {
         now - new Date(cached.loadedAt).getTime() > CACHE_TTL_MS;
 
       if (isStale) {
-        let missionPath = path.join(process.cwd(), "Missions", mission);
-        if (!fs.existsSync(missionPath)) {
-          missionPath = path.join(process.cwd(), "Missions", process.env.MAIN_MISSION || "frozon");
-        }
+        const missionPath = mission
+          ? path.join(process.cwd(), "Missions", mission)
+          : null;
 
-        if (fs.existsSync(missionPath)) {
+        if (missionPath && fs.existsSync(missionPath)) {
           s.app.locals.agentLayerInfoCache[mission] =
             getDynamicLayerInfo(missionPath);
-        } else {
+        } else if (LAYER_INFO_PATH && fs.existsSync(LAYER_INFO_PATH)) {
           s.app.locals.agentLayerInfoCache[mission] =
             loadLayerInfoFromDisk(LAYER_INFO_PATH);
+        } else {
+          s.app.locals.agentLayerInfoCache[mission] = { items: [], index: [], loadedAt: new Date().toISOString() };
         }
       }
 

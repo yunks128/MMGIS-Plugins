@@ -1,0 +1,48 @@
+{
+  "name": "open_animation_tool",
+  "description": "Open the Animation Tool pre-configured for a layer, time range, and region so the user can export a GIF or MP4 with one click.",
+  "parameters": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["layer_name"],
+    "properties": {
+      "layer_name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Display name of the layer to animate."
+      },
+      "start_date": {
+        "type": "string",
+        "description": "Animation start date in ISO format (e.g. '2024-01-01'). Defaults to the layer's earliest available date."
+      },
+      "end_date": {
+        "type": "string",
+        "description": "Animation end date in ISO format (e.g. '2024-12-31'). Defaults to the layer's latest available date."
+      },
+      "region": {
+        "type": "string",
+        "description": "Named geographic region (e.g. 'Beaufort Sea', 'Gulf of Mexico') or 'current view'."
+      },
+      "format": {
+        "type": "string",
+        "enum": ["gif", "mp4"],
+        "description": "Preferred export format (default: 'gif')."
+      }
+    }
+  },
+  "modelParameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "layer_name": { "type": "string" },
+      "start_date": { "type": "string" },
+      "end_date": { "type": "string" },
+      "region": { "type": "string" },
+      "format": { "type": "string" }
+    }
+  },
+  "execution": {
+    "adapter": "custom",
+    "ui": { "type": "open_animation_tool" }
+  }
+}
