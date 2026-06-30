@@ -1,8 +1,6 @@
 import $ from 'jquery'
 import L_ from '@basics/Layers_/Layers_'
 import TimeControl from '@basics/TimeControl_/TimeControl'
-import LayersTool from '@essence/Tools/Layers/LayersTool'
-import LegendTool from '@essence/Tools/Legend/LegendTool'
 import TimeUI from '@basics/TimeControl_/TimeUI'
 import {
     parseTimeQuery,
