@@ -3,7 +3,17 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
-const Config = require(require("path").join(process.cwd(), "API/Backend/Config/models/config"));
+// Config model moved from API/Backend/ to plugins/core/backend/ in the new plugin architecture
+const Config = (() => {
+  const candidates = [
+    path.join(process.cwd(), "plugins/core/backend/Config/models/config"),
+    path.join(process.cwd(), "API/Backend/Config/models/config"),
+  ];
+  for (const p of candidates) {
+    try { return require(p); } catch (_) {}
+  }
+  throw new Error("Cannot find Config model in any known location");
+})();
 const AgentConversation = require("../models/agentConversation");
 const { planWithProvider, streamWithProvider } = require("../provider");
 const { resolveRegion } = require("../regionResolver");
