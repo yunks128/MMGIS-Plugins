@@ -24,7 +24,7 @@ const { reloadRegistry } = require("../registryManager");
 
 const router = express.Router();
 
-const REPO_ROOT = path.resolve(__dirname, "../../../../");
+const REPO_ROOT = process.cwd();
 const DEFAULT_MISSION = process.env.FROZON_DEFAULT_MISSION || "frozon";
 const RASTER_STATS_SCRIPT = path.resolve(
   __dirname,
@@ -37,7 +37,7 @@ const PYTHON_EXECUTABLE =
     : "python3");
 const DEMO_QUERIES_CONFIG_PATH = path.resolve(
   __dirname,
-  "../../config/copilot_demo_queries.json",
+  "../config/copilot_demo_queries.json",
 );
 const MAX_LAYER_HINTS = 40;
 const MAX_LAYER_HINT_ALIASES = 4;
@@ -1011,7 +1011,6 @@ router.get("/analytics/statistics", async (req, res) => {
             : null,
       q25: typeof stats.q25 === "number" ? stats.q25 : null,
       q75: typeof stats.q75 === "number" ? stats.q75 : null,
-      valid_count: typeof stats.count === "number" ? stats.count : null,
       total_count: typeof stats.count === "number" ? stats.count : null,
       count: typeof stats.count === "number" ? stats.count : null,
       is_sampled: (stats.method || "").toLowerCase() === "sampled",
