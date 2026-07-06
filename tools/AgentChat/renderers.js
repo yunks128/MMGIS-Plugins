@@ -31,10 +31,6 @@ import {
     formatAnimationResults
 } from './timeSeriesAnimation'
 import {
-    extractCrossSection,
-    formatCrossSectionResults
-} from './crossSectionAnalysis'
-import {
     exportLayerData,
     formatExportResults,
     triggerDownload
@@ -2725,32 +2721,6 @@ export async function render_time_series_animation(_ctx, payload) {
     }
 }
 
-export async function render_cross_section(_ctx, payload) {
-    const layerName = payload?.layer_name || payload?.layer
-    if (!layerName || typeof layerName !== 'string') {
-        throw new Error('cross_section requires a layer_name string.')
-    }
-    
-    try {
-        const results = await extractCrossSection(layerName, {
-            startPoint: payload?.start_point || payload?.start_coordinates || payload?.start_coords,
-            endPoint: payload?.end_point || payload?.end_coordinates || payload?.end_coords,
-            startLocation: payload?.start_location,
-            endLocation: payload?.end_location,
-            numSamples: payload?.num_samples || 100,
-            includeStats: payload?.include_stats !== false,
-            visualize: payload?.visualize !== false
-        })
-        
-        const formattedOutput = formatCrossSectionResults(results)
-        appendLine(formattedOutput)
-        
-    } catch (error) {
-        appendLine(`Cross-section analysis failed: ${error?.message || error}`)
-        throw error
-    }
-}
-
 export async function render_data_export(_ctx, payload) {
     const layerName = payload?.layer_name || payload?.layer
     if (!layerName || typeof layerName !== 'string') {
@@ -3000,7 +2970,6 @@ const RENDERERS = {
     spatial_statistics: render_spatial_statistics,
     change_detection: render_change_detection,
     time_series_animation: render_time_series_animation,
-    cross_section: render_cross_section,
     data_export: render_data_export,
     list_analyzable_layers: list_analyzable_layers,
     open_animation_tool: render_open_animation_tool,
