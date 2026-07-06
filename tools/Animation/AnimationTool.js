@@ -968,8 +968,6 @@ function interfaceWithMMGIS() {
                 // Update TimeControl if available
                 updateTimeControlFromAnimation()
             }
-        } else {
-            console.log('Missing start or end date')
         }
     }
     
@@ -1087,7 +1085,6 @@ function interfaceWithMMGIS() {
                         // Restore the drawing layer if it was visible
                         if (drawingLayerWasVisible && AnimationTool.drawingLayer) {
                             AnimationTool.drawingLayer.addTo(Map_.map)
-                            console.log('Restored drawing layer after error')
                         }
                         reject(error)
                     })
@@ -1103,7 +1100,6 @@ function interfaceWithMMGIS() {
                 // so we check if drawing layer exists and isn't on map
                 if (drawingLayerWasVisible && AnimationTool.drawingLayer) {
                     AnimationTool.drawingLayer.addTo(Map_.map)
-                    console.log('Restored drawing layer after early error')
                 }
                 reject(error)
             }
@@ -1942,23 +1938,17 @@ function interfaceWithMMGIS() {
     
     function createCanvasBasedGIF(frames, button, originalText) {
         try {
-            console.log('Attempting canvas-based GIF creation...')
-            
             // Since gif.js is not working, provide multiple export options
-            console.log('Providing multiple export options since GIF creation is not available...')
-            
             if (frames.length === 1) {
                 // Single frame - just download as PNG
-                console.log('Single frame detected, downloading as PNG...')
                 downloadFile(frames[0].data, 'animation_frame.png', 'image/png')
                 button.text(originalText).prop('disabled', false)
                 showModalAlert('Single frame exported as PNG (GIF creation not available)')
                 return
             }
-            
+
             // Multiple frames - offer different export options
-            console.log('Multiple frames detected, creating export options...')
-            
+
             // Option 1: Create a sprite sheet
             createSpriteSheet(frames, button, originalText)
             

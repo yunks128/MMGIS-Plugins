@@ -27,31 +27,26 @@ export async function calculateRealLayerDifference(layerA, layerB, options = {})
     
     try {
         // Step 1: Load raster data for both layers
-        console.log(`Loading raster data for ${layerA.displayName} and ${layerB.displayName}...`);
         const [dataA, dataB] = await Promise.all([
             loadRasterData(layerA, area, resolution),
             loadRasterData(layerB, area, resolution)
         ]);
-        
+
         // Step 2: Align and resample data to common grid
-        console.log('Aligning spatial grids...');
         const [alignedA, alignedB] = alignRasterData(dataA, dataB);
-        
+
         // Step 3: Calculate pixel-by-pixel difference
-        console.log('Computing differences...');
         const differenceData = computeDifference(alignedA, alignedB);
-        
+
         // Step 4: Calculate statistics
         let stats = null;
         if (includeStats) {
-            console.log('Calculating statistics...');
             stats = calculateDifferenceStats(differenceData);
         }
-        
+
         // Step 5: Generate visualization
         let visualization = null;
         if (includeVisualization) {
-            console.log('Generating visualization...');
             visualization = generateDifferenceVisualization(differenceData, stats);
         }
         

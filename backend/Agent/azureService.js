@@ -145,13 +145,11 @@ async function executeAgentRun(messageText, { toolSet, threadId, keepThread } = 
   const client = getClient(cfg.endpoint);
   const activeToolSet = toolSet || buildBingToolSet(cfg.bingConnectionId);
   let thread = null;
-  let threadReused = false;
   let run = null;
   try {
     if (threadId) {
       try {
         thread = await client.threads.get(threadId);
-        threadReused = true;
       } catch (_) {
         // Thread expired or deleted; create a new one
         thread = await client.threads.create();
