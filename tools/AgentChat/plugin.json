@@ -56,8 +56,7 @@
     ]
   },
   "dependencies": {},
-  "pluginDependencies": ["backend/Agent"],
   "author": "yunks128",
   "license": "Apache-2.0",
-  "repository": "https://github.com/yunks128/MMGIS-Plugin-Tools-AI-Agent"
+  "repository": "https://github.com/NASA-AMMOS/MMGIS-Plugins/"
 }
