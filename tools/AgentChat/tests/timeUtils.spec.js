@@ -1,3 +1,4 @@
+import { test, expect } from '@playwright/test';
 import {
   parseTimeQuery,
   getLayerTimeMetadata,
@@ -5,7 +6,7 @@ import {
   formatLayerTimeAnnouncement,
 } from '../timeUtils';
 
-describe('timeUtils', () => {
+test.describe('timeUtils', () => {
   test('parseTimeQuery tolerates typos and paraphrasing', () => {
     const parsed = parseTimeQuery('please set time to Jnaury 2023 for me');
     expect(parsed).toBeTruthy();

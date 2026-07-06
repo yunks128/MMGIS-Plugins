@@ -1,3 +1,4 @@
+import { test, expect } from '@playwright/test'
 import { resolveLayerSelection } from '../layerResolver'
 
 const FIXTURE_LAYERS = [
@@ -37,7 +38,7 @@ const FIXTURE_LAYERS = [
     },
 ]
 
-describe('AgentChat layerResolver', () => {
+test.describe('AgentChat layerResolver', () => {
     test('resolves SWOT binned Freeboard to SWOT UUID', () => {
         const result = resolveLayerSelection({
             requestedName: 'SWOT binned Freeboard',

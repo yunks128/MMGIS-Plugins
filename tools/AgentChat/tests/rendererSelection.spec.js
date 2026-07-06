@@ -1,6 +1,7 @@
+import { test, expect } from '@playwright/test'
 import { RENDERERS } from '../renderers'
 
-describe('renderer selection shape', () => {
+test.describe('renderer selection shape', () => {
   test('has required renderer functions', () => {
     expect(typeof RENDERERS.render_layers_line).toBe('function')
     expect(typeof RENDERERS.render_links_summary).toBe('function')
