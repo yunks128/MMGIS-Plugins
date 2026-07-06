@@ -1,8 +1,0 @@
-{
-  "name": "highlight_toggle",
-  "description": "Hide or show the temporary highlight overlay.",
-  "parameters": { "type": "object", "additionalProperties": false },
-  "modelParameters": { "type": "object", "additionalProperties": false },
-  "execution": { "adapter": "custom", "ui": { "type": "highlight_toggle" } }
-}
-
