@@ -90,7 +90,13 @@ function toIsoString(date) {
 function fuzzyMatchMonth(token) {
     let bestKey = null
     let bestScore = 0
+    // Restrict candidates to the same leading character. Typos (transpositions,
+    // dropped/swapped letters) almost always preserve the first letter, and
+    // this prevents cross-month confusion between otherwise-similar-looking
+    // names (e.g. "september" vs "december" score ~0.67 on edit distance
+    // alone, well above what a real single-word typo like "jnaury" needs).
     UNIQUE_MONTH_KEYS.forEach((canonical) => {
+        if (!token || canonical[0] !== token[0]) return
         const score = scoreSimilarity(token, canonical)
         if (score > bestScore) {
             bestScore = score
@@ -109,7 +115,10 @@ function parseMonthWord(value) {
     if (!key) return null
     if (MONTH_LOOKUP.hasOwnProperty(key)) return MONTH_LOOKUP[key]
     const { bestKey, score } = fuzzyMatchMonth(key)
-    if (bestKey && score >= 0.7 && MONTH_LOOKUP.hasOwnProperty(bestKey))
+    // 0.55 sits between the worst same-letter false positive among real month
+    // names (june/july ~0.5) and a single-word typo like "jnaury"->"january"
+    // (~0.571), combined with the leading-letter restriction in fuzzyMatchMonth.
+    if (bestKey && score >= 0.55 && MONTH_LOOKUP.hasOwnProperty(bestKey))
         return MONTH_LOOKUP[bestKey]
     return null
 }
@@ -226,6 +235,24 @@ function extractTimeParts(str) {
                 },
             }
     }
+    match = trimmed.match(
+        /^(\d{4})\s+([a-zA-Z]+)\s+(\d{1,2})(?:st|nd|rd|th)?$/
+    )
+    if (match) {
+        const monthIdx = parseMonthWord(match[2])
+        if (monthIdx != null)
+            return {
+                precision: 'day',
+                parts: {
+                    year: Number(match[1]),
+                    month: monthIdx,
+                    day: Number(match[3]),
+                    hour: 0,
+                    minute: 0,
+                    second: 0,
+                },
+            }
+    }
     // M/D/YYYY or MM/DD/YYYY (US date format)
     match = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/)
     if (match) {
@@ -280,7 +307,9 @@ export function parseTimeQuery(rawInput) {
     let precision = 'day'
     if (/[T\s]\d{2}:\d{2}:\d{2}/.test(snippet)) precision = 'second'
     else if (/[T\s]\d{2}:\d{2}/.test(snippet)) precision = 'minute'
-    else if (/[T\s]\d{2}/.test(snippet)) precision = 'hour'
+    // (?!\d) guards against matching just the leading two digits of a bare
+    // 4-digit year (e.g. " 2023"), which isn't a time-of-day component at all.
+    else if (/[T\s]\d{2}(?!\d)/.test(snippet)) precision = 'hour'
     else if (/^\d{4}-\d{2}$/.test(snippet)) precision = 'month'
     else if (/^\d{4}$/.test(snippet)) precision = 'year'
     const normalized = new Date(
@@ -330,6 +359,13 @@ function extractDateSnippet(text) {
     if (iso && iso[0]) candidates.push(iso[0])
     const yearMonthDash = text.match(/\d{4}-\d{2}(?!\d)/)
     if (yearMonthDash && yearMonthDash[0]) candidates.push(yearMonthDash[0])
+    // "2024 March 15th" (year-month-day, year first) — checked ahead of the
+    // shorter word+year / year+word patterns below so the more complete
+    // match wins when both are present in the text.
+    const yearMonthDayWord = text.match(
+        /\d{4}\s+[a-zA-Z\.]+\s+\d{1,2}(?:st|nd|rd|th)?\b/
+    )
+    if (yearMonthDayWord && yearMonthDayWord[0]) candidates.push(yearMonthDayWord[0])
     const monthYear = text.match(
         /([a-zA-Z\.]+)\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+\d{4}/
     )
