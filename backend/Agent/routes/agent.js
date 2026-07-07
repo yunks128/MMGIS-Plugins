@@ -145,11 +145,25 @@ const layerCatalogCache = new Map();
 
 function getLayerSearchRoots(mission) {
   const missionName = mission || DEFAULT_MISSION;
-  return [
-    path.join(REPO_ROOT, "Missions", missionName),
-    path.join(REPO_ROOT, "Missions"),
-    REPO_ROOT,
-  ];
+  const missionsDir = path.join(REPO_ROOT, "Missions");
+  const roots = [path.join(missionsDir, missionName)];
+
+  // A mission's config can reference STAC collections/rasters that physically
+  // live under a differently-named sibling mission directory (e.g. a config
+  // like "frozon_ai_forecast" sharing raw data with the base "frozon" mission).
+  // Fall back to scanning sibling mission directories before giving up.
+  try {
+    const siblings = fs
+      .readdirSync(missionsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== missionName)
+      .map((entry) => path.join(missionsDir, entry.name));
+    roots.push(...siblings);
+  } catch {
+    // Missions directory unreadable; nothing to add.
+  }
+
+  roots.push(missionsDir, REPO_ROOT);
+  return roots;
 }
 
 async function loadMissionConfig(mission) {

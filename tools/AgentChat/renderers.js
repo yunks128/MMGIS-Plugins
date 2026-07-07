@@ -1965,7 +1965,8 @@ export async function render_layer_difference(_ctx, payload) {
         const nameA = encodeURIComponent(matchA.displayName || matchA.layer?.name || layerA)
         const nameB = encodeURIComponent(matchB.displayName || matchB.layer?.name || layerB)
         const timeParam = currentTimeStr ? `&time=${encodeURIComponent(currentTimeStr)}` : ''
-        const url = `${origin}${pathname}/api/agent/analytics/difference?layer_a=${nameA}&layer_b=${nameB}${timeParam}`
+        const missionParam = L_.mission ? `&mission=${encodeURIComponent(L_.mission)}` : ''
+        const url = `${origin}${pathname}/api/agent/analytics/difference?layer_a=${nameA}&layer_b=${nameB}${timeParam}${missionParam}`
 
         const res = await fetch(url)
         const data = await res.json()
