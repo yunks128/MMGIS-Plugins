@@ -1,0 +1,40 @@
+{
+  "type": "function",
+  "function": {
+    "name": "temporal_trends",
+    "description": "Analyze temporal trends in a layer over time, detecting seasonal patterns, long-term trends, and anomalous periods. Useful for climate change analysis and temporal pattern detection.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "layer_name": {
+          "type": "string",
+          "description": "The name of the layer to analyze for temporal trends (e.g., 'SWOT November 2024', 'ICESat-2 freeboard')"
+        },
+        "geographical_area": {
+          "type": "string",
+          "description": "The geographical area to analyze (e.g., 'Beaufort Sea', 'Arctic Ocean', 'current view'). Defaults to current view if not specified."
+        },
+        "time_start": {
+          "type": "string",
+          "description": "Start time for analysis in ISO format (e.g., '2024-01-01'). Defaults to '2024-01-01'."
+        },
+        "time_end": {
+          "type": "string",
+          "description": "End time for analysis in ISO format (e.g., '2024-12-31'). Defaults to '2024-12-31'."
+        },
+        "interval": {
+          "type": "string",
+          "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"],
+          "description": "Time interval for trend analysis (default 'monthly')"
+        }
+      },
+      "required": ["layer_name"]
+    }
+  },
+  "ui": {
+    "type": "render",
+    "renderer": "temporal_trends",
+    "title": "Temporal Trend Analysis",
+    "details": "Analyzing time series patterns, trends, and seasonal variations"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "uuid": "c2f05147-3620-4e2b-8b8c-2b73e8a600c6",
+  "id": "frozon-agentchat",
+  "version": "1.0.0",
+  "type": "tool",
+  "tier": "experimental",
+  "engines": {
+    "mmgis": ">=5.2.0"
+  },
+  "overridable": true,
+  "defaultIcon": "robot-outline",
+  "description": "Chat with the MMGIS Agent to list layers, toggle, opacity, and zoom.",
+  "descriptionFull": {
+    "title": "Agent Chat",
+    "example": {
+      "message": "List layers"
+    }
+  },
+  "hasVars": false,
+  "name": "AgentChat",
+  "toolbarPriority": 3,
+  "separatedTool": true,
+  "paths": {
+    "AgentChatTool": "./AgentChatTool"
+  },
+  "expandable": false,
+  "config": {
+    "rows": [
+      {
+        "components": [
+          {
+            "field": "separatedTool",
+            "name": "Separated Tool",
+            "description": "If true, this tool will live outside the left-hand toolbar and be independently accessible.",
+            "type": "checkbox",
+            "width": 3,
+            "defaultChecked": true
+          },
+          {
+            "field": "variables.justification",
+            "name": "Justification",
+            "description": "The legend will display on the right side of the screen if set to right, otherwise default to the left side",
+            "type": "dropdown",
+            "width": 2,
+            "options": [
+              "left",
+              "right"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "author": "yunks128",
+  "repository": "https://github.com/yunks128/MMGIS-Plugins"
+}

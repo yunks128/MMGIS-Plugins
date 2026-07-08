@@ -1,0 +1,40 @@
+{
+  "type": "function",
+  "function": {
+    "name": "spatial_statistics",
+    "description": "Calculate spatial autocorrelation statistics using Moran's I and detect spatial clustering patterns. Identifies hotspots, coldspots, and spatial outliers in geospatial datasets.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "layer_name": {
+          "type": "string",
+          "description": "The name of the layer to analyze for spatial patterns (e.g., 'SWOT November 2024', 'ICESat-2 freeboard')"
+        },
+        "geographical_area": {
+          "type": "string",
+          "description": "The geographical area to analyze (e.g., 'Beaufort Sea', 'Arctic Ocean', 'current view'). Defaults to current view if not specified."
+        },
+        "grid_size": {
+          "type": "number",
+          "description": "Grid size for spatial analysis (default 16). Larger values provide more detailed analysis."
+        },
+        "analysis_type": {
+          "type": "string",
+          "enum": ["moran", "getis", "ripley"],
+          "description": "Type of spatial analysis to perform (default 'moran' for Moran's I autocorrelation)"
+        },
+        "visualize": {
+          "type": "boolean",
+          "description": "Whether to highlight analysis area and patterns on the map (default true)"
+        }
+      },
+      "required": ["layer_name"]
+    }
+  },
+  "ui": {
+    "type": "render",
+    "renderer": "spatial_statistics",
+    "title": "Spatial Autocorrelation Analysis",
+    "details": "Computing spatial clustering patterns and autocorrelation statistics"
+  }
+}

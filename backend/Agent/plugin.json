@@ -1,0 +1,16 @@
+{
+  "name": "Agent",
+  "id": "frozon-agent",
+  "version": "1.0.0",
+  "type": "backend",
+  "tier": "experimental",
+  "description": "AI Agent Chat backend: LLM providers (Gemini/Azure), tool registry, and /api/agent routes powering the AgentChat tool",
+  "author": "yunks128",
+  "repository": "https://github.com/yunks128/MMGIS-Plugins",
+  "engines": {
+    "mmgis": ">=5.2.0"
+  },
+  "priority": 200,
+  "overridable": true,
+  "dependencies": {}
+}

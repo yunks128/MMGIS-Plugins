@@ -1,0 +1,87 @@
+{
+  "name": "threshold_highlight",
+  "description": "Create a temporary highlight overlay by rescaling a numeric raster layer so values above, below, or between thresholds stand out.",
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "geographical_area": {
+        "type": "string",
+        "description": "Optional named area to scope the highlight."
+      },
+      "layer_name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Layer display name or alias."
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Optional label for the temporary overlay."
+      },
+      "operator": {
+        "type": "string",
+        "enum": [">", ">=", "<", "<=", "=", "==", "between"]
+      },
+      "time": {
+        "type": "string",
+        "description": "Single timestamp or label for the requested slice."
+      },
+      "time_start": { "type": "string" },
+      "time_end": { "type": "string" },
+      "time_window": {
+        "type": "string",
+        "description": "Relative window such as 'P7D' or 'past week'."
+      },
+      "unit": {
+        "type": "string",
+        "description": "Units for threshold values (e.g., m, cm, mm)."
+      },
+      "value": {
+        "type": "number",
+        "description": "Threshold value for single-sided comparisons."
+      },
+      "value_min": {
+        "type": "number",
+        "description": "Lower bound when operator is \"between\"."
+      },
+      "value_max": {
+        "type": "number",
+        "description": "Upper bound when operator is \"between\"."
+      },
+      "variable": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Variable name within the layer to evaluate."
+      }
+    },
+    "required": ["layer_name", "variable", "operator"]
+  },
+  "modelParameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "geographical_area": { "type": "string" },
+      "layer_name": { "type": "string" },
+      "name": { "type": "string" },
+      "operator": {
+        "type": "string",
+        "enum": [">", ">=", "<", "<=", "=", "==", "between"]
+      },
+      "time": { "type": "string" },
+      "time_start": { "type": "string" },
+      "time_end": { "type": "string" },
+      "time_window": { "type": "string" },
+      "unit": { "type": "string" },
+      "value": { "type": "number" },
+      "value_min": { "type": "number" },
+      "value_max": { "type": "number" },
+      "variable": { "type": "string" }
+    },
+    "required": ["layer_name", "variable", "operator"]
+  },
+  "execution": {
+    "adapter": "custom",
+    "ui": { "type": "threshold_highlight" }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "type": "function",
+  "function": {
+    "name": "detect_anomalies",
+    "description": "Detect statistical anomalies in layer data using z-score and IQR methods. Identifies outliers, extreme values, and unusual patterns in geospatial datasets.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "layer_name": {
+          "type": "string",
+          "description": "The name of the layer to analyze for anomalies (e.g., 'SWOT November 2024', 'ICESat-2 freeboard')"
+        },
+        "geographical_area": {
+          "type": "string",
+          "description": "The geographical area to analyze (e.g., 'Beaufort Sea', 'Arctic Ocean', 'current view'). Defaults to current view if not specified."
+        },
+        "method": {
+          "type": "string",
+          "enum": ["auto", "zscore", "iqr", "spatial"],
+          "description": "The anomaly detection method to use. 'auto' uses both z-score and IQR methods."
+        },
+        "threshold": {
+          "type": "number",
+          "description": "The threshold for anomaly detection. For z-score method, this is the number of standard deviations (default 2.5)."
+        },
+        "time_start": {
+          "type": "string",
+          "description": "Start time for temporal analysis in ISO format (e.g., '2024-11-01')"
+        },
+        "time_end": {
+          "type": "string",
+          "description": "End time for temporal analysis in ISO format (e.g., '2024-11-30')"
+        },
+        "visualize": {
+          "type": "boolean",
+          "description": "Whether to highlight anomalous regions on the map (default true)"
+        }
+      },
+      "required": ["layer_name"]
+    }
+  },
+  "ui": {
+    "type": "render",
+    "renderer": "anomaly_detection",
+    "title": "Detecting Anomalies",
+    "details": "Analyzing statistical outliers and extreme values in the dataset"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "name": "calculate_layer_mean",
+  "description": "Compute mean, standard deviation, and 25/50/75 percentiles for a layer over a named geographic region. Minor typos or paraphrased layer names are normalized automatically; the Copilot confirms the intent to calculate averages when necessary.",
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "layer_name",
+      "geographical_area"
+    ],
+    "properties": {
+      "layer_name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Layer display name or alias. Minor typos and paraphrased names are auto-corrected."
+      },
+      "geographical_area": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Named area of interest (e.g., 'Beaufort Sea')."
+      },
+      "time_start": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Optional ISO 8601 timestamp representing the start of the analysis window."
+      },
+      "time_end": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Optional ISO 8601 timestamp representing the end of the analysis window."
+      }
+    }
+  },
+  "modelParameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "layer_name",
+      "geographical_area"
+    ],
+    "properties": {
+      "layer_name": {
+        "type": "string"
+      },
+      "geographical_area": {
+        "type": "string"
+      },
+      "time_start": {
+        "type": "string"
+      },
+      "time_end": {
+        "type": "string"
+      }
+    }
+  },
+  "execution": {
+    "adapter": "custom",
+    "ui": {
+      "type": "layer_mean"
+    }
+  }
+}
