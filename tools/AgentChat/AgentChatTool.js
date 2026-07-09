@@ -7,6 +7,7 @@
 
 import L_ from '@basics/Layers_/Layers_'
 import TimeControl from '@basics/TimeControl_/TimeControl'
+import useUIStore from '@essence/Basics/UserInterface_/store/uiStore'
 import * as d3 from 'd3'
 import RENDERERS, {
     fast_visible_layers_time as fastVisibleLayersTime,
@@ -159,26 +160,23 @@ function formatZoomSuggestion(region) {
 const AgentChatTool = {
     height: 0,
     width: 'full',
+    // Renders its own floating overlay — no separated panel shell needed
+    ownWindow: true,
     MMGISInterface: null,
     made: false,
     initialize: function () {
-        hideToolbarButtons()
         ensureTopbarLauncher()
     },
     make() {
         this.MMGISInterface = new interfaceWithMMGIS()
         this.made = true
-        hideToolbarButtons()
         ensureTopbarLauncher()
+        syncSeparatedToolState(true)
     },
     destroy() {
         if (this.MMGISInterface) this.MMGISInterface.separateFromMMGIS()
         this.made = false
-        // Remove active class from the button when closing from inside the tool
-        try {
-            const btn = document.querySelector('#toolButtonSeparated_AgentChat')
-            if (btn) btn.classList.remove('active')
-        } catch (_) {}
+        syncSeparatedToolState(false)
     },
     getUrlString() {
         return ''
@@ -2465,20 +2463,23 @@ function interfaceWithMMGIS() {
     }
 }
 
-function hideToolbarButtons(retry = 0) {
-    const ids = ['toolButtonAgentChat', 'toolButtonSeparated_AgentChat']
-    let hidden = true
-    ids.forEach((id) => {
-        const el = document.getElementById(id)
-        if (el) {
-            el.style.display = 'none'
-        } else {
-            hidden = false
+// Keep the toolbar button active-state and separated-tool registries in
+// sync when the chat is opened/closed from anywhere (robot icon, topbar
+// launcher, or the overlay's own close button)
+function syncSeparatedToolState(open) {
+    try {
+        const store = useUIStore.getState()
+        if (open) store.addActiveSeparatedTool('AgentChatTool')
+        else store.removeActiveSeparatedTool('AgentChatTool')
+        const controller = window.ToolController_
+        if (controller && Array.isArray(controller.activeSeparatedTools)) {
+            controller.activeSeparatedTools =
+                controller.activeSeparatedTools.filter(
+                    (a) => a !== 'AgentChatTool'
+                )
+            if (open) controller.activeSeparatedTools.push('AgentChatTool')
         }
-    })
-    if (!hidden && retry < 10) {
-        setTimeout(() => hideToolbarButtons(retry + 1), 200)
-    }
+    } catch (_) {}
 }
 
 function ensureTopbarLauncher(retry = 0) {
@@ -2540,11 +2541,15 @@ function ensureTopbarLauncher(retry = 0) {
 function openFromTopbar(attempt = 0) {
     try {
         const controller = window.ToolController_
-        if (!controller || !Array.isArray(controller.toolModuleNames))
+        if (!controller || !controller.toolModules)
             throw new Error('Tool controller unavailable')
-        const idx = controller.toolModuleNames.indexOf('AgentChatTool')
-        if (idx === -1) throw new Error('AgentChat tool not registered')
-        controller.makeTool('AgentChatTool', idx)
+        const tM = controller.toolModules['AgentChatTool']
+        if (!tM) throw new Error('AgentChat tool not registered')
+        // Toggle via the separated-tool lifecycle (same as the toolbar's
+        // robot button) — makeTool() is for panel tools and would make
+        // AgentChat the active tool, closing it on any tool switch
+        if (tM.made) tM.destroy()
+        else tM.make('toolContentSeparated_AgentChat')
     } catch (err) {
         if (attempt < 5) {
             setTimeout(() => openFromTopbar(attempt + 1), 200)

@@ -12,5 +12,10 @@
   },
   "priority": 200,
   "overridable": true,
-  "dependencies": {}
+  "dependencies": {
+    "npm": {
+      "@azure/ai-agents": "^1.1.0",
+      "@azure/identity": "^4.13.0"
+    }
+  }
 }
