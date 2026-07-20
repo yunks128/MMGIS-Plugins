@@ -259,7 +259,6 @@ def main(argv: list[str] | None = None) -> int:
                 stats = summarize_raster_sampled(
                     src, bbox=bbox, spacing_degrees=max(0.1, args.sample_spacing)
                 )
-            stats["path"] = str(args.raster)
             stats["method"] = args.mode
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

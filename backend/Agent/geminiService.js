@@ -46,11 +46,16 @@ function buildRequest(prompt) {
  */
 async function generateContent(prompt) {
   const { apiKey, model } = getConfig();
-  const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+  const url = `${GEMINI_API_BASE}/${model}:generateContent`;
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // Pass the key in a header, not the query string, so it can't leak into
+      // access logs, proxies, or referrers.
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify(buildRequest(prompt)),
   });
 
@@ -80,11 +85,16 @@ async function generateContent(prompt) {
  */
 async function* streamContent(prompt) {
   const { apiKey, model } = getConfig();
-  const url = `${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const url = `${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse`;
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // Pass the key in a header, not the query string, so it can't leak into
+      // access logs, proxies, or referrers.
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify(buildRequest(prompt)),
   });
 
