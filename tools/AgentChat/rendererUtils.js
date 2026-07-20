@@ -219,12 +219,8 @@ export function resolveArea(name) {
 
 function getAnalyticsBaseUrl() {
     const override =
-        (window?.frozonAnalyticsBase &&
-            String(window.frozonAnalyticsBase).trim()) ||
-        (window?.mmgisglobal?.FROZON_ANALYTICS_BASE_URL &&
-            String(window.mmgisglobal.FROZON_ANALYTICS_BASE_URL).trim()) ||
-        (window?.mmgisglobal?.ANALYTICS_BASE_URL &&
-            String(window.mmgisglobal.ANALYTICS_BASE_URL).trim())
+        window?.mmgisglobal?.ANALYTICS_BASE_URL &&
+        String(window.mmgisglobal.ANALYTICS_BASE_URL).trim()
     const root = (window?.mmgisglobal?.ROOT_PATH || '').replace(/\/+$/, '')
     const base =
         override && override.length ? override : `${root}/api/agent/analytics`
