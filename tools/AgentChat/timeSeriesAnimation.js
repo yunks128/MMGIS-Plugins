@@ -7,6 +7,18 @@ import {
     resolveArea
 } from './rendererUtils.js'
 
+// Escape untrusted strings before interpolating them into innerHTML. Layer
+// names originate from agent tool actions, so they must never be treated as
+// markup.
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
 // Animation state management
 const animationState = {
     isPlaying: false,
@@ -358,9 +370,9 @@ function updateAnimationControlPanel(panel, controls) {
     
     panel.innerHTML = `
         <div style="font-weight: bold; margin-bottom: 10px;">Time Series Animation</div>
-        <div style="margin-bottom: 8px;">Layer: ${animationState.layerName}</div>
+        <div style="margin-bottom: 8px;">Layer: ${escapeHtml(animationState.layerName)}</div>
         <div style="margin-bottom: 8px;">Frame: ${animationState.currentFrame + 1} / ${animationState.totalFrames}</div>
-        <div style="margin-bottom: 8px;">Time: ${frame ? frame.label : 'Loading...'}</div>
+        <div style="margin-bottom: 8px;">Time: ${frame ? escapeHtml(frame.label) : 'Loading...'}</div>
         <div style="margin-bottom: 12px;">Status: ${isPlaying ? 'Playing' : 'Ready'}</div>
         
         <div style="display: flex; gap: 8px; margin-bottom: 10px;">

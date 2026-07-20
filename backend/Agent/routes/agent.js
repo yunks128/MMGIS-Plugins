@@ -3,33 +3,88 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 const { v4: uuidv4 } = require("uuid");
-// Config model moved from API/Backend/ to plugins/core/backend/ in the new plugin architecture
-const Config = (() => {
-  const candidates = [
-    path.join(process.cwd(), "plugins/core/backend/Config/models/config"),
-    path.join(process.cwd(), "API/Backend/Config/models/config"),
-  ];
-  for (const p of candidates) {
-    try { return require(p); } catch (_) {}
-  }
-  throw new Error("Cannot find Config model in any known location");
-})();
+// Config model lives under plugins/core/backend/ in the plugin architecture.
+const Config = require(
+  path.join(process.cwd(), "plugins/core/backend/Config/models/config"),
+);
 const AgentConversation = require("../models/agentConversation");
 const { planWithProvider, streamWithProvider } = require("../provider");
 const { resolveRegion } = require("../regionResolver");
 const { normalizeName, scoreCandidate } = require("../utils/text");
 const { getClient, haveFasEnv } = require("../azureService");
-const AgentTool = require("../models/agentTool");
-const { reloadRegistry } = require("../registryManager");
+
+// Compute rate limiter (shared MMGIS middleware). Loaded defensively so the
+// plugin still mounts in environments where the script is unavailable.
+let computeLimiter = (req, res, next) => next();
+try {
+  ({ computeLimiter } = require(
+    path.join(process.cwd(), "scripts/rateLimiters"),
+  ));
+} catch (_) {
+  // No shared limiter available; fall back to a no-op middleware.
+}
 
 const router = express.Router();
 
 const REPO_ROOT = process.cwd();
-const DEFAULT_MISSION = process.env.FROZON_DEFAULT_MISSION || "frozon";
 const RASTER_STATS_SCRIPT = path.resolve(
   __dirname,
   "../tools/calculate_raster_stats.py",
 );
+const RASTER_DIFFERENCE_SCRIPT = path.resolve(
+  __dirname,
+  "../tools/calculate_raster_difference.py",
+);
+
+// Client-facing error messages must never carry stack traces, absolute paths,
+// or other server internals. Log the real error, return a generic string.
+function sendError(res, status, publicMessage, error) {
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error(publicMessage, error);
+  }
+  if (!res.headersSent) {
+    res.status(status).json({ error: publicMessage });
+  }
+}
+
+// Reject oversized free-text inputs before they reach fuzzy matching / spawns.
+const MAX_LAYER_NAME_LENGTH = 256;
+const MAX_REGION_NAME_LENGTH = 256;
+
+function readLayerNameParam(req, ...keys) {
+  for (const key of keys) {
+    const value = req.query[key];
+    if (typeof value === "string" && value.trim()) {
+      const trimmed = value.trim();
+      if (trimmed.length > MAX_LAYER_NAME_LENGTH) {
+        const err = new Error(
+          `Query parameter '${key}' exceeds ${MAX_LAYER_NAME_LENGTH} characters.`,
+        );
+        err.status = 400;
+        throw err;
+      }
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+// A single path segment supplied by a client (layer/collection name) must not
+// be able to escape its intended directory.
+function isSafePathSegment(segment) {
+  return (
+    typeof segment === "string" &&
+    segment.length > 0 &&
+    segment.length <= MAX_LAYER_NAME_LENGTH &&
+    !segment.includes("\0") &&
+    !segment.includes("/") &&
+    !segment.includes("\\") &&
+    !segment.split(/[\\/]/).includes("..") &&
+    segment !== ".." &&
+    !path.isAbsolute(segment)
+  );
+}
 const PYTHON_EXECUTABLE =
   process.env.MMGIS_PYTHON ||
   (process.env.VIRTUAL_ENV
@@ -144,30 +199,17 @@ function selectLayerSummaries(store) {
 const layerCatalogCache = new Map();
 
 function getLayerSearchRoots(mission) {
-  const missionName = mission || DEFAULT_MISSION;
-  const missionsDir = path.join(REPO_ROOT, "Missions");
-  const roots = [path.join(missionsDir, missionName)];
-
-  // A mission's config can reference STAC collections/rasters that physically
-  // live under a differently-named sibling mission directory (e.g. a config
-  // like "frozon_ai_forecast" sharing raw data with the base "frozon" mission).
-  // Fall back to scanning sibling mission directories before giving up.
-  try {
-    const siblings = fs
-      .readdirSync(missionsDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && entry.name !== missionName)
-      .map((entry) => path.join(missionsDir, entry.name));
-    roots.push(...siblings);
-  } catch {
-    // Missions directory unreadable; nothing to add.
-  }
-
-  roots.push(missionsDir, REPO_ROOT);
-  return roots;
+  // Scope every filesystem lookup to the requesting mission's own directory.
+  // We deliberately do NOT scan sibling missions or the Missions root: those
+  // directories can hold billions of TMS tiles and walking them would take the
+  // server down. `mission` is validated by getMissionFromRequest().
+  if (!isSafePathSegment(mission)) return [];
+  return [path.join(REPO_ROOT, "Missions", mission)];
 }
 
 async function loadMissionConfig(mission) {
-  const missionName = mission || DEFAULT_MISSION;
+  const missionName = mission;
+  if (!isSafePathSegment(missionName)) return null;
 
   // Honour FORCE_CONFIG_PATH (same env var the main config endpoint uses)
   if (process.env.FORCE_CONFIG_PATH) {
@@ -180,6 +222,7 @@ async function loadMissionConfig(mission) {
     }
   }
 
+  // Config is authoritatively served from the database.
   try {
     const record = await Config.findOne({
       where: { mission: missionName },
@@ -190,36 +233,18 @@ async function loadMissionConfig(mission) {
     // eslint-disable-next-line no-console
     console.warn(`Failed to fetch mission config for ${missionName}:`, error?.message);
   }
-  // Fallback: attempt to read a config JSON from Missions directory
+
+  // Fallback: a single, deterministically-named config file for this mission.
+  // We intentionally avoid enumerating the Missions directory (it can contain
+  // billions of tile files) and only stat one known path.
   try {
-    // Prefer explicit unversioned mission file if present.
-    const preferred = path.join(REPO_ROOT, "Missions", `${missionName}_config.json`);
+    const preferred = path.join(
+      REPO_ROOT,
+      "Missions",
+      `${missionName}_config.json`,
+    );
     if (fs.existsSync(preferred)) {
       const raw = fs.readFileSync(preferred, "utf8");
-      return JSON.parse(raw);
-    }
-    // Otherwise, scan Missions for mission-specific config files and pick newest.
-    const missionsDir = path.join(REPO_ROOT, "Missions");
-    const extractVersion = (filename) => {
-      const match = String(filename || "").match(/_v(\d+)_config\.json$/i);
-      if (!match) return -1;
-      const parsed = Number(match[1]);
-      return Number.isFinite(parsed) ? parsed : -1;
-    };
-    const candidates = fs
-      .readdirSync(missionsDir)
-      .filter((f) => /config\.json$/i.test(f) && f.toLowerCase().includes(missionName.toLowerCase()))
-      .map((f) => ({
-        file: path.join(missionsDir, f),
-        version: extractVersion(f),
-        mtime: fs.statSync(path.join(missionsDir, f)).mtimeMs,
-      }))
-      .sort((a, b) => {
-        if (b.version !== a.version) return b.version - a.version;
-        return b.mtime - a.mtime;
-      });
-    if (candidates.length) {
-      const raw = fs.readFileSync(candidates[0].file, "utf8");
       return JSON.parse(raw);
     }
   } catch (e) {
@@ -230,7 +255,7 @@ async function loadMissionConfig(mission) {
 }
 
 async function buildLayerCatalog(mission) {
-  const missionName = mission || DEFAULT_MISSION;
+  const missionName = mission;
   const cached = layerCatalogCache.get(missionName);
   if (cached) return cached;
   let catalog = [];
@@ -347,12 +372,20 @@ function resolveRasterPathFromSources(sources = [], mission) {
   return null;
 }
 
+// Bounds for the fallback filesystem search. A mission's Layers directory can
+// contain billions of TMS tiles, so the walk is strictly capped on both depth
+// and the total number of entries inspected — it will bail out long before it
+// could exhaust the event loop or memory.
+const RASTER_SEARCH_MAX_DEPTH = 4;
+const RASTER_SEARCH_MAX_ENTRIES = 5000;
+
 function searchRasterByName(layerName, mission) {
-  const target = normalizeName(layerName);
   let best = { path: null, score: 0 };
   const layerSearchRoots = getLayerSearchRoots(mission);
+  let budget = RASTER_SEARCH_MAX_ENTRIES;
 
-  const visitDir = (dir) => {
+  const visitDir = (dir, depth) => {
+    if (depth > RASTER_SEARCH_MAX_DEPTH || budget <= 0) return;
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -360,9 +393,10 @@ function searchRasterByName(layerName, mission) {
       return;
     }
     for (const entry of entries) {
+      if (budget-- <= 0) return;
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        visitDir(fullPath);
+        visitDir(fullPath, depth + 1);
         continue;
       }
       if (!/\.tif[f]?$/i.test(entry.name)) continue;
@@ -376,9 +410,61 @@ function searchRasterByName(layerName, mission) {
 
   for (const root of layerSearchRoots) {
     const layersDir = path.join(root, "Layers");
-    visitDir(layersDir);
+    visitDir(layersDir, 0);
   }
   return best.path ? best : null;
+}
+
+// Resolve the newest GeoTIFF inside a mission's Layers/<collection>/ directory.
+// `collection` is treated as a single, untrusted path segment: it is validated
+// against traversal, and the resolved directory is confirmed to still sit
+// under the mission's Layers directory before anything is read. "Layers/" is
+// only a soft convention — callers must tolerate a null result.
+function findNewestTiffInCollection(mission, collection, requestedTime = "") {
+  if (!isSafePathSegment(collection)) return null;
+  for (const root of getLayerSearchRoots(mission)) {
+    const layersDir = path.join(root, "Layers");
+    const dir = path.resolve(layersDir, collection);
+    // Defense in depth: never read outside the mission's Layers directory.
+    if (dir !== layersDir && !dir.startsWith(layersDir + path.sep)) continue;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    const tiffs = entries.filter((f) => /\.tif[f]?$/i.test(f)).sort();
+    if (tiffs.length === 0) continue;
+
+    let selected = tiffs[tiffs.length - 1]; // default: newest (lexicographic)
+    if (requestedTime) {
+      const target = requestedTime.replace(/[-T:Z]/g, "").slice(0, 8);
+      let bestDist = Infinity;
+      for (const f of tiffs) {
+        const dateMatch = f.match(/(\d{8})/);
+        if (dateMatch) {
+          const dist = Math.abs(Number(dateMatch[1]) - Number(target));
+          if (dist < bestDist) {
+            bestDist = dist;
+            selected = f;
+          }
+        }
+      }
+    }
+    return path.join(dir, selected);
+  }
+  return null;
+}
+
+// Map an absolute server path to the public titiler /Missions mount, without
+// ever exposing the absolute filesystem path to the client.
+function toMissionsUrl(absPath) {
+  const p = String(absPath).replace(/\\/g, "/");
+  const idx = p.indexOf("/Missions/");
+  if (idx >= 0) return p.slice(idx);
+  const rel = p.indexOf("Missions/");
+  if (rel >= 0) return "/" + p.slice(rel);
+  return null;
 }
 
 function loadDemoQueries() {
@@ -487,12 +573,22 @@ async function findLayerRaster(layerName, mission) {
   return null;
 }
 
+// The mission always comes from the request. Admins add and remove missions
+// freely, so there is no server-side default to fall back to.
 function getMissionFromRequest(req) {
-  const mission =
-    typeof req.query?.mission === "string" && req.query.mission.trim()
-      ? req.query.mission.trim()
-      : null;
-  return mission || DEFAULT_MISSION;
+  const raw =
+    typeof req.query?.mission === "string" ? req.query.mission.trim() : "";
+  if (!raw) {
+    const err = new Error("Query parameter 'mission' is required.");
+    err.status = 400;
+    throw err;
+  }
+  if (!isSafePathSegment(raw)) {
+    const err = new Error("Invalid mission name.");
+    err.status = 400;
+    throw err;
+  }
+  return raw;
 }
 
 function getLiveToolOptions(req) {
@@ -628,7 +724,7 @@ function validateAction(action, req) {
   return { tool: action.tool, args };
 }
 
-router.post("/", express.json(), async function (req, res) {
+router.post("/", computeLimiter, express.json(), async function (req, res) {
   try {
     const message = req.body?.message ?? "";
     if (typeof message !== "string") {
@@ -731,21 +827,20 @@ router.post("/", express.json(), async function (req, res) {
     });
   } catch (error) {
     const status = Number.isInteger(error.status) ? error.status : 500;
-    try {
-      // eslint-disable-next-line no-console
-      console.error("Agent planning error:", error);
-    } catch (_) {}
+    // eslint-disable-next-line no-console
+    console.error("Agent planning error:", error);
+    // Only surface messages for deliberate client errors (4xx). 5xx failures
+    // return a generic message so stack traces / internals never reach clients.
     const response = {
-      error: error.message || "Agent planning failed",
+      error: status < 500 ? error.message : "Agent planning failed.",
     };
-    if (error.debug) response.debug = error.debug;
     if (error.validationErrors)
       response.validationErrors = error.validationErrors;
     res.status(status).json(response);
   }
 });
 
-router.post("/stream", express.json(), async function (req, res) {
+router.post("/stream", computeLimiter, express.json(), async function (req, res) {
   try {
     const message = req.body?.message ?? "";
     if (typeof message !== "string") {
@@ -840,10 +935,13 @@ router.post("/stream", express.json(), async function (req, res) {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("Agent stream error:", error);
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    const publicMessage =
+      status < 500 ? error.message : "Agent streaming failed.";
     if (!res.headersSent) {
-      res.status(500).json({ error: error.message || "Agent streaming failed" });
+      res.status(status).json({ error: publicMessage });
     } else {
-      res.write(`data: ${JSON.stringify({ type: "error", data: error.message || "Streaming failed" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "error", data: publicMessage })}\n\n`);
       res.end();
     }
   }
@@ -893,9 +991,7 @@ router.get("/copilot/demo-queries", (req, res) => {
     const queries = loadDemoQueries();
     res.status(200).json({ queries });
   } catch (error) {
-    res.status(500).json({
-      error: error?.message || "Failed to load copilot demo queries.",
-    });
+    sendError(res, 500, "Failed to load copilot demo queries.", error);
   }
 });
 
@@ -907,6 +1003,12 @@ router.get("/regions/resolve", async (req, res) => {
       "";
     if (!nameParam) {
       res.status(400).json({ error: "Query parameter 'name' is required." });
+      return;
+    }
+    if (nameParam.length > MAX_REGION_NAME_LENGTH) {
+      res.status(400).json({
+        error: `Query parameter 'name' exceeds ${MAX_REGION_NAME_LENGTH} characters.`,
+      });
       return;
     }
     const bufferParam =
@@ -936,23 +1038,14 @@ router.get("/regions/resolve", async (req, res) => {
       buffer_km: resolved.bufferKm || null,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("regions/resolve error:", error);
-    res.status(500).json({
-      error: error?.message || "Failed to resolve geographical region.",
-    });
+    sendError(res, 500, "Failed to resolve geographical region.", error);
   }
 });
 
-router.get("/analytics/statistics", async (req, res) => {
+router.get("/analytics/statistics", computeLimiter, async (req, res) => {
   try {
     const mission = getMissionFromRequest(req);
-    const layerName =
-      typeof req.query.layer_name === "string" && req.query.layer_name.trim()
-        ? req.query.layer_name.trim()
-        : typeof req.query.layer === "string" && req.query.layer.trim()
-          ? req.query.layer.trim()
-          : null;
+    const layerName = readLayerNameParam(req, "layer_name", "layer");
     if (!layerName) {
       res.status(400).json({
         error: "Query parameter 'layer_name' is required.",
@@ -1010,7 +1103,6 @@ router.get("/analytics/statistics", async (req, res) => {
     }
     const response = {
       layer_name: layerRecord.name,
-      layer_path: stats.path || layerRecord.path,
       source: "local-raster",
       confidence: layerRecord.score,
       mean: typeof stats.mean === "number" ? stats.mean : null,
@@ -1055,11 +1147,12 @@ router.get("/analytics/statistics", async (req, res) => {
     };
     res.status(200).json(response);
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("analytics/statistics error:", error);
-    res.status(500).json({
-      error: error?.message || "Failed to compute raster statistics.",
-    });
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status < 500) {
+      res.status(status).json({ error: error.message });
+    } else {
+      sendError(res, 500, "Failed to compute raster statistics.", error);
+    }
   }
 });
 
@@ -1074,92 +1167,69 @@ router.get("/analytics/layers", async (req, res) => {
     }));
     res.status(200).json({ layers: payload, mission });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("analytics/layers error:", error);
-    res.status(500).json({
-      error: error?.message || "Failed to enumerate analytics layers.",
-    });
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status < 500) {
+      res.status(status).json({ error: error.message });
+    } else {
+      sendError(res, 500, "Failed to enumerate analytics layers.", error);
+    }
   }
 });
 
 router.get("/analytics/resolve-cog", async (req, res) => {
   try {
     const mission = getMissionFromRequest(req);
-    const layerName =
-      typeof req.query.layer_name === "string" && req.query.layer_name.trim()
-        ? req.query.layer_name.trim()
-        : typeof req.query.layer === "string" && req.query.layer.trim()
-          ? req.query.layer.trim()
-          : null;
+    const layerName = readLayerNameParam(req, "layer_name", "layer");
     if (!layerName) {
       res.status(400).json({ error: "Query parameter 'layer_name' is required." });
       return;
     }
 
-    let layerRecord = await findLayerRaster(layerName, mission);
+    let resolvedPath = null;
+    const record = await findLayerRaster(layerName, mission);
+    if (record?.path) resolvedPath = record.path;
 
-    // If standard resolution fails, try STAC collection directories
-    if (!layerRecord || !layerRecord.path) {
-      // Check if layerName is a STAC collection name directly (e.g. "forecast-7day-PRED")
-      const layerSearchRoots = getLayerSearchRoots(mission);
-      for (const root of layerSearchRoots) {
-        const dir = path.join(root, "Layers", layerName);
-        if (fs.existsSync(dir)) {
-          try {
-            const entries = fs.readdirSync(dir);
-            const tiffs = entries.filter((f) => /\.tif[f]?$/i.test(f)).sort();
-            if (tiffs.length > 0) {
-              layerRecord = { name: layerName, path: path.join(dir, tiffs[tiffs.length - 1]), score: 1.0 };
-              break;
+    // STAC collections are only sometimes materialised on disk under
+    // Missions/<mission>/Layers/<collection>/. This is a best-effort lookup:
+    // a STAC item's assets can point at any URL, so a miss here is expected and
+    // simply falls through to the 404/422 below.
+    if (!resolvedPath) {
+      resolvedPath = findNewestTiffInCollection(mission, layerName);
+    }
+
+    // Also try matching the requested name to a configured STAC collection and
+    // then looking for that collection's directory on disk.
+    if (!resolvedPath) {
+      const config = await loadMissionConfig(mission);
+      if (config) {
+        const layers = Array.isArray(config.layers) ? config.layers : [];
+        let stacCollection = null;
+        let bestScore = 0;
+        const visit = (node) => {
+          if (!node || typeof node !== "object") return;
+          const name = (node.name || "").trim();
+          if (name && node.sourceType === "stac-collection" && node.url) {
+            const score = scoreCandidate(layerName, name);
+            if (score > bestScore) {
+              bestScore = score;
+              stacCollection = node.url;
             }
-          } catch (_) {}
+          }
+          if (Array.isArray(node.sublayers)) node.sublayers.forEach(visit);
+        };
+        layers.forEach(visit);
+        if (stacCollection) {
+          resolvedPath = findNewestTiffInCollection(mission, stacCollection);
         }
       }
     }
 
-    // Also try matching via mission config STAC collection URLs
-    if (!layerRecord || !layerRecord.path) {
-      try {
-        const config = await loadMissionConfig(mission);
-        if (config) {
-          const layers = Array.isArray(config.layers) ? config.layers : [];
-          let stacUrl = null;
-          let bestScore = 0;
-          const visit = (node) => {
-            if (!node || typeof node !== "object") return;
-            const name = (node.name || "").trim();
-            if (name && node.sourceType === "stac-collection" && node.url) {
-              const score = scoreCandidate(layerName, name);
-              if (score > bestScore) { bestScore = score; stacUrl = node.url; }
-            }
-            if (Array.isArray(node.sublayers)) node.sublayers.forEach(visit);
-          };
-          layers.forEach(visit);
-          if (stacUrl) {
-            const layerSearchRoots = getLayerSearchRoots(mission);
-            for (const root of layerSearchRoots) {
-              const dir = path.join(root, "Layers", stacUrl);
-              if (!fs.existsSync(dir)) continue;
-              try {
-                const entries = fs.readdirSync(dir);
-                const tiffs = entries.filter((f) => /\.tif[f]?$/i.test(f)).sort();
-                if (tiffs.length > 0) {
-                  layerRecord = { name: layerName, path: path.join(dir, tiffs[tiffs.length - 1]), score: bestScore };
-                  break;
-                }
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (!layerRecord || !layerRecord.path) {
+    if (!resolvedPath) {
       const catalog = await buildLayerCatalog(mission);
-      const catalogMatch = catalog.find(
-        (e) => e.name.toLowerCase().includes(layerName.toLowerCase())
+      const catalogMatch = catalog.find((e) =>
+        e.name.toLowerCase().includes(layerName.toLowerCase()),
       );
-      if (catalogMatch && catalogMatch.sourceType === 'url') {
+      if (catalogMatch && catalogMatch.sourceType === "url") {
         res.status(422).json({
           error: `Layer '${catalogMatch.name}' is an external tile service and does not have local raster data for statistics.`,
           layer_name: catalogMatch.name,
@@ -1173,214 +1243,94 @@ router.get("/analytics/resolve-cog", async (req, res) => {
       return;
     }
 
-    // Map server filesystem path -> titiler mount (/Missions)
-    let p = String(layerRecord.path).replace(/\\/g, "/");
-    const idx = p.indexOf("/Missions/");
-    let titilerUrl = null;
-    if (idx >= 0) {
-      titilerUrl = p.slice(idx);
-    } else {
-      // Best-effort
-      if (p.includes("Missions/")) titilerUrl = "/" + p.slice(p.indexOf("Missions/"));
-      else titilerUrl = "/Missions/" + p.replace(/^.*?Missions\/?/, "");
+    const titilerUrl = toMissionsUrl(resolvedPath);
+    if (!titilerUrl) {
+      res.status(404).json({
+        error: `Layer '${layerName}' is not served from the Missions mount.`,
+      });
+      return;
     }
 
-    res.status(200).json({
-      url: titilerUrl,
-      path: layerRecord.path,
-      mission,
-    });
+    res.status(200).json({ url: titilerUrl, mission });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("analytics/resolve-cog error:", error);
-    res.status(500).json({ error: error?.message || "Failed to resolve COG url." });
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status < 500) {
+      res.status(status).json({ error: error.message });
+    } else {
+      sendError(res, 500, "Failed to resolve COG url.", error);
+    }
   }
 });
 
 // --- Layer difference endpoint ---
 
-router.get("/analytics/difference", async (req, res) => {
+router.get("/analytics/difference", computeLimiter, async (req, res) => {
   try {
     const mission = getMissionFromRequest(req);
-    const layerNameA = (req.query.layer_a || "").trim();
-    const layerNameB = (req.query.layer_b || "").trim();
+    const layerNameA = readLayerNameParam(req, "layer_a");
+    const layerNameB = readLayerNameParam(req, "layer_b");
     if (!layerNameA || !layerNameB) {
       return res.status(400).json({ error: "Both layer_a and layer_b are required." });
     }
 
-    // Try to resolve rasters — first via catalog, then by finding a tiff in
-    // the layer's STAC collection directory
-    const requestedTime = (req.query.time || "").trim();
+    const requestedTime = (req.query.time || "").toString().trim().slice(0, 32);
 
-    async function resolveRaster(layerName) {
-      // Try STAC collection resolution first (more precise for named layers)
-      // then fall back to standard resolution
-      // the STAC collection URL, then pick the most recent tiff in that directory
+    // Resolve each layer to a local raster. Prefer a configured STAC collection
+    // directory (time-aware), then fall back to standard resolution.
+    const resolveRaster = async (layerName) => {
       const config = await loadMissionConfig(mission);
-      if (!config) return null;
-
-      const layers = Array.isArray(config.layers) ? config.layers : [];
-      let stacUrl = null;
-      let bestMatchScore = 0;
-
-      const visit = (node) => {
-        if (!node || typeof node !== "object") return;
-        const name = (node.name || "").trim();
-        if (name && node.sourceType === "stac-collection" && node.url) {
-          const score = scoreCandidate(layerName, name);
-          if (score > bestMatchScore) {
-            bestMatchScore = score;
-            stacUrl = node.url;
-          }
-        }
-        if (Array.isArray(node.sublayers)) node.sublayers.forEach(visit);
-      };
-      layers.forEach(visit);
-
-      if (!stacUrl) {
-        // Fall back to standard resolution
-        const record = await findLayerRaster(layerName, mission);
-        if (record?.path) return record;
-        return null;
-      }
-
-      // stacUrl is the collection name, e.g. "forecast-7day-PRED"
-      // Look for tiff files in Missions/{mission}/Layers/{stacUrl}/
-      const layerSearchRoots = getLayerSearchRoots(mission);
-      for (const root of layerSearchRoots) {
-        const dir = path.join(root, "Layers", stacUrl);
-        if (!fs.existsSync(dir)) continue;
-        let entries;
-        try { entries = fs.readdirSync(dir); } catch { continue; }
-        const tiffs = entries
-          .filter((f) => /\.tif[f]?$/i.test(f))
-          .sort();
-        if (tiffs.length > 0) {
-          let selected = tiffs[tiffs.length - 1]; // default: newest
-          // If a time was requested, find the tiff closest to that date
-          if (requestedTime) {
-            const target = requestedTime.replace(/[-T:Z]/g, "").slice(0, 8); // "20240110"
-            let bestDist = Infinity;
-            for (const f of tiffs) {
-              const dateMatch = f.match(/(\d{8})/);
-              if (dateMatch) {
-                const dist = Math.abs(Number(dateMatch[1]) - Number(target));
-                if (dist < bestDist) {
-                  bestDist = dist;
-                  selected = f;
-                }
-              }
+      if (config) {
+        const layers = Array.isArray(config.layers) ? config.layers : [];
+        let stacCollection = null;
+        let bestScore = 0;
+        const visit = (node) => {
+          if (!node || typeof node !== "object") return;
+          const name = (node.name || "").trim();
+          if (name && node.sourceType === "stac-collection" && node.url) {
+            const score = scoreCandidate(layerName, name);
+            if (score > bestScore) {
+              bestScore = score;
+              stacCollection = node.url;
             }
           }
-          return { name: layerName, path: path.join(dir, selected), score: 1.0 };
+          if (Array.isArray(node.sublayers)) node.sublayers.forEach(visit);
+        };
+        layers.forEach(visit);
+        if (stacCollection) {
+          const found = findNewestTiffInCollection(
+            mission,
+            stacCollection,
+            requestedTime,
+          );
+          if (found) return found;
         }
       }
-      return null;
-    }
+      const record = await findLayerRaster(layerName, mission);
+      return record?.path || null;
+    };
 
-    const recordA = await resolveRaster(layerNameA);
-    const recordB = await resolveRaster(layerNameB);
-    if (!recordA?.path) {
+    const pathA = await resolveRaster(layerNameA);
+    const pathB = await resolveRaster(layerNameB);
+    if (!pathA) {
       return res.status(404).json({ error: `Cannot find raster for layer '${layerNameA}'.` });
     }
-    if (!recordB?.path) {
+    if (!pathB) {
       return res.status(404).json({ error: `Cannot find raster for layer '${layerNameB}'.` });
     }
 
-    const bbox = parseBboxFromQuery(req.query);
-
-    // Compute difference using Python
+    // Compute the difference in a dedicated Python script. All values are
+    // passed as argv — no caller-controlled data is ever interpolated into
+    // source code — so there is no path to arbitrary code execution.
     const result = await new Promise((resolve, reject) => {
       const args = [
-        "-c",
-        `
-import sys, json, numpy as np
-try:
-    import rasterio
-    from rasterio.warp import reproject, Resampling, calculate_default_transform
-except ImportError:
-    print(json.dumps({"error": "rasterio not installed"}))
-    sys.exit(0)
-
-path_a = sys.argv[1]
-path_b = sys.argv[2]
-bbox_str = sys.argv[3] if len(sys.argv) > 3 else ""
-
-with rasterio.open(path_a) as src_a, rasterio.open(path_b) as src_b:
-    # Read data
-    data_a = src_a.read(1).astype(np.float64)
-    data_b = src_b.read(1).astype(np.float64)
-
-    nodata_a = src_a.nodata
-    nodata_b = src_b.nodata
-
-    # Create masks — filter out nodata fill values
-    # For SIC data, valid range is 0-1; for other data, filter extreme negatives
-    def make_valid_mask(data, nodata):
-        mask = np.isfinite(data)
-        if nodata is not None:
-            mask = mask & (data != nodata)
-        # Auto-detect fill value: if many pixels are exactly -9999, use that
-        if np.sum(data == -9999) > data.size * 0.1:
-            mask = mask & (data != -9999)
-        # If data range suggests 0-1 (SIC), filter negatives
-        if np.max(data[mask]) <= 1.5:
-            mask = mask & (data >= 0)
-        else:
-            mask = mask & (data > -9000)
-        return mask
-    mask_a = make_valid_mask(data_a, nodata_a)
-    mask_b = make_valid_mask(data_b, nodata_b)
-    if nodata_a is not None:
-        mask_a = mask_a & (data_a != nodata_a)
-    if nodata_b is not None:
-        mask_b = mask_b & (data_b != nodata_b)
-
-    # Ensure same shape
-    if data_a.shape != data_b.shape:
-        # Resample B to match A
-        from rasterio.warp import reproject, Resampling
-        data_b_resampled = np.empty_like(data_a)
-        reproject(
-            data_b, data_b_resampled,
-            src_transform=src_b.transform, src_crs=src_b.crs,
-            dst_transform=src_a.transform, dst_crs=src_a.crs,
-            resampling=Resampling.nearest
-        )
-        data_b = data_b_resampled
-        mask_b = make_valid_mask(data_b, nodata_b)
-
-    valid = mask_a & mask_b
-    diff = np.where(valid, data_a - data_b, np.nan)
-    valid_diff = diff[valid]
-
-    if len(valid_diff) == 0:
-        print(json.dumps({"error": "No overlapping valid pixels"}))
-        sys.exit(0)
-
-    result = {
-        "mean": float(np.nanmean(valid_diff)),
-        "std": float(np.nanstd(valid_diff)),
-        "min": float(np.nanmin(valid_diff)),
-        "max": float(np.nanmax(valid_diff)),
-        "median": float(np.nanmedian(valid_diff)),
-        "q25": float(np.nanpercentile(valid_diff, 25)),
-        "q75": float(np.nanpercentile(valid_diff, 75)),
-        "valid_count": int(np.sum(valid)),
-        "total_count": int(data_a.size),
-        "mean_a": float(np.nanmean(data_a[mask_a])),
-        "mean_b": float(np.nanmean(data_b[mask_b])),
-        "layer_a": "${layerNameA.replace(/"/g, '')}",
-        "layer_b": "${layerNameB.replace(/"/g, '')}",
-        "path_a": path_a,
-        "path_b": path_b,
-    }
-    print(json.dumps(result))
-`,
-        recordA.path,
-        recordB.path,
+        RASTER_DIFFERENCE_SCRIPT,
+        "--path-a", pathA,
+        "--path-b", pathB,
+        "--layer-a", layerNameA,
+        "--layer-b", layerNameB,
       ];
-      if (bbox) args.push(bbox.join(","));
+      const bbox = parseBboxFromQuery(req.query);
+      if (bbox) args.push("--bbox", bbox.join(","));
 
       const child = spawn(PYTHON_EXECUTABLE, args, { cwd: REPO_ROOT });
       let stdout = "";
@@ -1390,12 +1340,15 @@ with rasterio.open(path_a) as src_a, rasterio.open(path_b) as src_b:
       child.on("error", reject);
       child.on("close", (code) => {
         if (code !== 0) {
-          return reject(new Error(stderr.trim() || `Difference script failed (exit ${code})`));
+          const err = new Error("Difference computation failed.");
+          err.stderr = stderr;
+          return reject(err);
         }
         try {
           resolve(JSON.parse(stdout.trim()));
         } catch (e) {
-          reject(new Error(`Failed to parse difference output: ${e.message}`));
+          e.stdout = stdout;
+          reject(e);
         }
       });
     });
@@ -1406,97 +1359,12 @@ with rasterio.open(path_a) as src_a, rasterio.open(path_b) as src_b:
 
     res.status(200).json(result);
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("analytics/difference error:", error);
-    res.status(500).json({ error: error?.message || "Failed to compute layer difference." });
-  }
-});
-
-// --- Tool management endpoints ---
-
-router.post("/tools/register", express.json(), async (req, res) => {
-  try {
-    const { name, description, execution, modelParameters, parameters } = req.body;
-    if (!name || typeof name !== "string" || !name.trim()) {
-      return res.status(400).json({ error: "Tool name is required." });
-    }
-    const [tool, created] = await AgentTool.upsert({
-      name: name.trim(),
-      description: description || "",
-      execution: execution || {},
-      modelParameters: modelParameters || {},
-      parameters: parameters || {},
-      source: "api",
-      enabled: true,
-    });
-    await reloadRegistry(req.app);
-    // Broadcast tool registry change via WebSocket
-    try {
-      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
-      if (websocket.wss) {
-        websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
-      }
-    } catch (_) {}
-    res.status(created ? 201 : 200).json({ tool: tool.toJSON ? tool.toJSON() : tool });
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("tool register error:", error);
-    res.status(500).json({ error: error?.message || "Failed to register tool." });
-  }
-});
-
-router.put("/tools/:name", express.json(), async (req, res) => {
-  try {
-    const tool = await AgentTool.findByPk(req.params.name);
-    if (!tool) {
-      return res.status(404).json({ error: "Tool not found." });
-    }
-    const updates = {};
-    if (req.body.description !== undefined) updates.description = req.body.description;
-    if (req.body.execution !== undefined) updates.execution = req.body.execution;
-    if (req.body.modelParameters !== undefined) updates.modelParameters = req.body.modelParameters;
-    if (req.body.parameters !== undefined) updates.parameters = req.body.parameters;
-    if (typeof req.body.enabled === "boolean") updates.enabled = req.body.enabled;
-    await tool.update(updates);
-    await reloadRegistry(req.app);
-    try {
-      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
-      if (websocket.wss) {
-        websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
-      }
-    } catch (_) {}
-    res.status(200).json({ tool: tool.toJSON() });
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("tool update error:", error);
-    res.status(500).json({ error: error?.message || "Failed to update tool." });
-  }
-});
-
-router.delete("/tools/:name", async (req, res) => {
-  try {
-    const tool = await AgentTool.findByPk(req.params.name);
-    if (!tool) {
-      return res.status(404).json({ error: "Tool not found." });
-    }
-    if (tool.source === "file") {
-      // Disable file-sourced tools instead of deleting (so seed doesn't recreate)
-      await tool.update({ enabled: false });
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status < 500) {
+      res.status(status).json({ error: error.message });
     } else {
-      await tool.destroy();
+      sendError(res, 500, "Failed to compute layer difference.", error);
     }
-    await reloadRegistry(req.app);
-    try {
-      const { websocket } = require(require("path").join(process.cwd(), "API/websocket"));
-      if (websocket.wss) {
-        websocket.wss.broadcast(JSON.stringify({ type: "toolRegistryChanged" }));
-      }
-    } catch (_) {}
-    res.status(200).json({ deleted: true });
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("tool delete error:", error);
-    res.status(500).json({ error: error?.message || "Failed to delete tool." });
   }
 });
 
@@ -1513,9 +1381,12 @@ router.get("/conversations", async (req, res) => {
     });
     res.status(200).json({ conversations });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("conversations list error:", error);
-    res.status(500).json({ error: error?.message || "Failed to list conversations." });
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status < 500) {
+      res.status(status).json({ error: error.message });
+    } else {
+      sendError(res, 500, "Failed to list conversations.", error);
+    }
   }
 });
 
@@ -1527,9 +1398,7 @@ router.get("/conversations/:id", async (req, res) => {
     }
     res.status(200).json(conversation.toJSON());
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("conversation get error:", error);
-    res.status(500).json({ error: error?.message || "Failed to get conversation." });
+    sendError(res, 500, "Failed to get conversation.", error);
   }
 });
 
@@ -1554,9 +1423,7 @@ router.delete("/conversations/:id", async (req, res) => {
     await conversation.destroy();
     res.status(200).json({ deleted: true });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error("conversation delete error:", error);
-    res.status(500).json({ error: error?.message || "Failed to delete conversation." });
+    sendError(res, 500, "Failed to delete conversation.", error);
   }
 });
 

@@ -10,10 +10,10 @@ function loadRegistry() {
   try {
     raw = fs.readFileSync(registryPath, "utf8");
   } catch (error) {
-    const err = new Error(
-      `Unable to read tool registry at ${registryPath}: ${error.message}`,
-    );
+    // Keep the message generic (no absolute paths); detail goes to server logs.
+    const err = new Error("Unable to read tool registry.");
     err.code = "ToolRegistryReadError";
+    err.detail = `${registryPath}: ${error.message}`;
     err.cause = error;
     throw err;
   }
@@ -24,10 +24,9 @@ function loadRegistry() {
     }
     return parsed;
   } catch (error) {
-    const err = new Error(
-      `Invalid tool registry JSON at ${registryPath}: ${error.message}`,
-    );
+    const err = new Error("Invalid tool registry JSON.");
     err.code = "ToolRegistryParseError";
+    err.detail = `${registryPath}: ${error.message}`;
     err.cause = error;
     throw err;
   }

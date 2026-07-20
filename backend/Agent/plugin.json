@@ -29,8 +29,7 @@
     "AZURE_BING_CONNECTION_ID": "(string, optional) Azure AI Foundry Bing grounding connection ID",
     "GEMINI_API_KEY": "(string) Google Gemini API key",
     "GEMINI_MODEL": "(string) Gemini model name [default 'gemini-2.0-flash']",
-    "MMGIS_PYTHON": "(string) Path to Python executable for raster analysis [default 'python3']",
-    "FROZON_DEFAULT_MISSION": "(string) Default mission name used when none is supplied in requests"
+    "MMGIS_PYTHON": "(string) Path to Python executable for raster analysis [default 'python3']"
   },
   "config": {
     "rows": [

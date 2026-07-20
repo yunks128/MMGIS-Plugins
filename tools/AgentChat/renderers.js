@@ -189,10 +189,13 @@ function buildAnalyticsUrl(path, baseOverride = undefined) {
 async function fetchAnalyticsLayerCatalog(baseOverride = null) {
     const base = resolveAnalyticsBase(baseOverride)
     if (!base) return null
-    if (analyticsLayerCatalogPromises.has(base)) {
-        return analyticsLayerCatalogPromises.get(base)
+    const cacheKey = L_.mission ? `${base}::${L_.mission}` : base
+    if (analyticsLayerCatalogPromises.has(cacheKey)) {
+        return analyticsLayerCatalogPromises.get(cacheKey)
     }
-    const url = `${base}/layers`
+    const url = L_.mission
+        ? `${base}/layers?mission=${encodeURIComponent(L_.mission)}`
+        : `${base}/layers`
     const promise = fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -206,10 +209,10 @@ async function fetchAnalyticsLayerCatalog(baseOverride = null) {
             return res.json()
         })
         .catch((error) => {
-            analyticsLayerCatalogPromises.delete(base)
+            analyticsLayerCatalogPromises.delete(cacheKey)
             throw error
         })
-    analyticsLayerCatalogPromises.set(base, promise)
+    analyticsLayerCatalogPromises.set(cacheKey, promise)
     return promise
 }
 
@@ -383,6 +386,7 @@ async function fetchAnalyticsStatistics(
         if (timeRange.start) params.set('time_start', timeRange.start)
         if (timeRange.end) params.set('time_end', timeRange.end)
     }
+    if (L_.mission) params.set('mission', L_.mission)
     const url = buildAnalyticsUrl('statistics', baseOverride)
     if (!url) {
         throw new Error('Analytics endpoint is not configured for this layer.')
@@ -421,6 +425,7 @@ async function fetchAnalyticsHistogram(
         params.set('b', bbox.join(','))
     }
     params.set('bins', String(bins))
+    if (L_.mission) params.set('mission', L_.mission)
     const url = buildAnalyticsUrl('histogram/data', baseOverride)
     if (!url) {
         throw new Error('Analytics histogram endpoint is unavailable.')
@@ -2220,8 +2225,11 @@ export async function render_threshold_highlight(_ctx, payload) {
         try {
             const origin = window.location.origin
             const pathname = (window.location.pathname || '').replace(/\/$/g, '')
+            const missionParam = L_.mission
+                ? `&mission=${encodeURIComponent(L_.mission)}`
+                : ''
             const cogRes = await fetch(
-                `${origin}${pathname}/api/agent/analytics/resolve-cog?layer=${encodeURIComponent(collectionName)}`
+                `${origin}${pathname}/api/agent/analytics/resolve-cog?layer=${encodeURIComponent(collectionName)}${missionParam}`
             )
             if (cogRes.ok) {
                 const cogData = await cogRes.json()

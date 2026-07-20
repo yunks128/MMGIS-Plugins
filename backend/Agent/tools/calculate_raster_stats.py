@@ -2,8 +2,7 @@
 """
 Utility script for summarizing raster values from a GeoTIFF.
 
-Given a raster file path (defaults to the Frozon freeboard layer),
-the script computes:
+Given a raster file path, the script computes:
   - mean
   - standard deviation (population, ddof=0)
   - 25th, 50th (median), and 75th percentiles
@@ -11,8 +10,7 @@ the script computes:
 Only valid (non-NaN, non-nodata, non-masked) pixels are considered.
 
 Example:
-    python calculate_raster_stats.py
-    python calculate_raster_stats.py /path/to/other_raster.tif
+    python calculate_raster_stats.py /path/to/raster.tif
 """
 
 from __future__ import annotations
@@ -35,28 +33,6 @@ except ImportError as exc:  # pragma: no cover - guard for missing dependency
 from rasterio.errors import WindowError
 from rasterio.windows import from_bounds, Window
 from rasterio.warp import transform, transform_bounds
-
-
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_DEFAULT_SUBPATH = Path(
-    "frozon/Layers/Freeboard/"
-    "SWOT_L2_LR_NPFRB_024_530_20241201T002652_20241201T011735_PIC2_01_ssha_COG.tif"
-)
-
-
-def _default_raster_path() -> Path:
-    """Return the first existing default raster path."""
-    candidates = [
-        _REPO_ROOT / "Missions" / _DEFAULT_SUBPATH,
-        _REPO_ROOT / "Mission" / _DEFAULT_SUBPATH,
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    return candidates[0]
-
-
-DEFAULT_RASTER = _default_raster_path()
 
 
 def _valid_pixels(array, nodata) -> np.ndarray:
@@ -228,10 +204,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "raster",
-        nargs="?",
-        default=DEFAULT_RASTER,
         type=Path,
-        help=f"Path to the GeoTIFF (default: {DEFAULT_RASTER})",
+        help="Path to the GeoTIFF to summarize.",
     )
     parser.add_argument(
         "--pretty",

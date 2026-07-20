@@ -1,6 +1,16 @@
 // Shared utility functions for AgentChat renderers
 // Extracted from renderers.js to support modular functionality
 
+import L_ from '@basics/Layers_/Layers_'
+
+// The active mission is only ever sourced from the running MMGIS instance, so
+// analytics requests always carry the mission the user is actually viewing.
+// (The backend has no default mission — admins add/remove missions freely.)
+export function getCurrentMission() {
+    const mission = L_ && typeof L_.mission === 'string' ? L_.mission.trim() : ''
+    return mission || null
+}
+
 export function normalizeName(value) {
     return (value || '')
         .toString()
@@ -223,7 +233,11 @@ function getAnalyticsBaseUrl() {
 
 function buildAnalyticsUrl(path) {
     const safePath = String(path || '').replace(/^\/+/, '')
-    return `${getAnalyticsBaseUrl()}/${safePath}`
+    const url = `${getAnalyticsBaseUrl()}/${safePath}`
+    const mission = getCurrentMission()
+    if (!mission) return url
+    const sep = url.includes('?') ? '&' : '?'
+    return `${url}${sep}mission=${encodeURIComponent(mission)}`
 }
 
 let analyticsLayerCatalogPromise = null
@@ -409,7 +423,8 @@ export async function fetchAnalyticsStatistics(layerKey, bbox, timeRange, layerN
         if (timeRange.start) params.set('time_start', timeRange.start)
         if (timeRange.end) params.set('time_end', timeRange.end)
     }
-    const url = `${buildAnalyticsUrl('statistics')}?${params.toString()}`
+    const statsUrl = buildAnalyticsUrl('statistics')
+    const url = `${statsUrl}${statsUrl.includes('?') ? '&' : '?'}${params.toString()}`
     const res = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -442,7 +457,8 @@ export async function fetchAnalyticsHistogram(
         params.set('b', bbox.join(','))
     }
     params.set('bins', String(bins))
-    const url = `${buildAnalyticsUrl('histogram/data')}?${params.toString()}`
+    const histUrl = buildAnalyticsUrl('histogram/data')
+    const url = `${histUrl}${histUrl.includes('?') ? '&' : '?'}${params.toString()}`
     const res = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
