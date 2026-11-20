@@ -1,7 +1,7 @@
-# MMGIS Copilot Automated Testing Documentation
+# MMGIS Assistant Automated Testing Documentation
 
 ## Overview
-This test suite provides automated capability testing for the MMGIS Copilot, validating all major functions including layer management, navigation, temporal analysis, spatial analysis, and data comparison.
+This test suite provides automated capability testing for the MMGIS Assistant, validating all major functions including layer management, navigation, temporal analysis, spatial analysis, and data comparison.
 
 ## Test Structure
 
@@ -153,7 +153,7 @@ Tests can be scheduled to run periodically:
 setInterval(async () => {
     const results = await quickCopilotTest();
     if (results.summary.successRate < 80) {
-        console.warn('⚠️ Copilot success rate below threshold!');
+        console.warn('⚠️ Assistant success rate below threshold!');
     }
 }, 3600000);
 ```
@@ -205,7 +205,7 @@ Expected execution times:
 
 ### Common Issues
 
-1. **Copilot not responding**
+1. **Assistant not responding**
    - Ensure MMGIS is running
    - Check browser console for errors
    - Verify AgentChat tool is enabled

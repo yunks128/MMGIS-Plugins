@@ -1,4 +1,4 @@
-// Cross-Section Analysis Functions for MMGIS Copilot
+// Cross-Section Analysis Functions for MMGIS Assistant
 // Provides elevation/thickness profile extraction along user-defined transects
 
 import { 

@@ -1,6 +1,6 @@
 # Agent Provider Fallback System
 
-The MMGIS Copilot agent uses a fallback provider system to ensure high availability.
+The MMGIS Assistant agent uses a fallback provider system to ensure high availability.
 
 ## Provider Priority
 

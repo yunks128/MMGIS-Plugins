@@ -1,7 +1,7 @@
 /**
- * MMGIS Copilot Automated Capability Testing Suite
+ * MMGIS Assistant Automated Capability Testing Suite
  * 
- * This test suite validates all copilot functions by sending test queries
+ * This test suite validates all assistant functions by sending test queries
  * and checking for successful responses or expected error patterns.
  */
 
@@ -243,7 +243,7 @@ const COPILOT_TEST_SUITE = {
         };
 
         try {
-            // Send query to copilot
+            // Send query to assistant
             const response = await this.sendCopilotQuery(test.query);
             result.response = response.text;
             result.toolsUsed = response.tools || [];
@@ -368,7 +368,7 @@ const COPILOT_TEST_SUITE = {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>MMGIS Copilot Test Report - ${results.timestamp}</title>
+            <title>MMGIS Assistant Test Report - ${results.timestamp}</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
                 .header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
@@ -393,7 +393,7 @@ const COPILOT_TEST_SUITE = {
         </head>
         <body>
             <div class="header">
-                <h1>MMGIS Copilot Capability Test Report</h1>
+                <h1>MMGIS Assistant Capability Test Report</h1>
                 <p>Generated: ${results.timestamp}</p>
                 <p>Mission: ${results.environment.mission} | URL: ${results.environment.url}</p>
             </div>
@@ -470,7 +470,7 @@ const COPILOT_TEST_SUITE = {
     },
 
     /**
-     * Mock function to send query to copilot
+     * Mock function to send query to assistant
      * In real implementation, this would use the actual API
      */
     async sendCopilotQuery(query) {

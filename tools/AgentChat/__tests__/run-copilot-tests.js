@@ -1,5 +1,5 @@
 /**
- * MMGIS Copilot Test Runner
+ * MMGIS Assistant Test Runner
  * 
  * This script can be executed in the browser console to run automated tests
  * Usage: 
@@ -17,9 +17,9 @@ async function runCopilotTests(options = {}) {
         verbose = true  // Show progress in console
     } = options;
 
-    console.log('🚀 Starting MMGIS Copilot Automated Testing...');
+    console.log('🚀 Starting MMGIS Assistant Automated Testing...');
     
-    // Helper function to send actual queries to the copilot
+    // Helper function to send actual queries to the assistant
     async function sendRealCopilotQuery(query) {
         try {
             // Find the AgentChat input and button
@@ -27,7 +27,7 @@ async function runCopilotTests(options = {}) {
             const sendBtn = document.querySelector('#agentChatSend');
             
             if (!input || !sendBtn) {
-                // Try to open the copilot first
+                // Try to open the assistant first
                 const copilotBtn = document.querySelector('#mmgisCopilotTopbarButton');
                 if (copilotBtn) {
                     copilotBtn.click();
@@ -40,7 +40,7 @@ async function runCopilotTests(options = {}) {
             const chatSend = document.querySelector('#agentChatSend');
             
             if (!chatInput || !chatSend) {
-                throw new Error('Copilot chat interface not found');
+                throw new Error('Assistant chat interface not found');
             }
 
             // Clear previous response tracking
@@ -248,7 +248,7 @@ async function runCopilotTests(options = {}) {
                     passed = alternativeChecks[expectLower].some(alt => responseText.includes(alt));
                 }
                 
-                // Special case: for action queries, check if copilot acknowledged the action
+                // Special case: for action queries, check if the assistant acknowledged the action
                 if (!passed && test.query.toLowerCase().includes('toggle')) {
                     passed = responseText.includes('toggle') || responseText.includes('turned') || 
                              responseText.includes('enabled') || responseText.includes('visible') ||
@@ -393,7 +393,7 @@ async function runCopilotTests(options = {}) {
     } else if (outputFormat === 'html') {
         // Generate simple HTML report
         const html = `
-            <h2>MMGIS Copilot Test Results</h2>
+            <h2>MMGIS Assistant Test Results</h2>
             <p>Generated: ${results.timestamp}</p>
             <h3>Summary: ${results.summary.successRate} Success Rate</h3>
             <table border="1" cellpadding="5">
@@ -417,7 +417,7 @@ async function runCopilotTests(options = {}) {
 
 // Quick test function for rapid validation
 async function quickCopilotTest() {
-    console.log('🚀 Running quick Copilot test (3 queries)...');
+    console.log('🚀 Running quick Assistant test (3 queries)...');
     console.log('⏱️ Each query will wait for completion before proceeding...');
     return await runCopilotTests({
         categories: ['quickTest'],
@@ -428,9 +428,9 @@ async function quickCopilotTest() {
 
 // Full test suite
 async function fullCopilotTest() {
-    console.log('🚀 Running full Copilot test suite...');
+    console.log('🚀 Running full Assistant test suite...');
     console.log('⏱️ This will take approximately 5-10 minutes...');
-    console.log('⚠️ Each test will wait for the copilot to fully respond before continuing.');
+    console.log('⚠️ Each test will wait for the assistant to fully respond before continuing.');
     return await runCopilotTests({
         categories: null,  // Test all categories
         delayBetweenTests: 4000,
@@ -444,7 +444,7 @@ window.runCopilotTests = runCopilotTests;
 window.quickCopilotTest = quickCopilotTest;
 window.fullCopilotTest = fullCopilotTest;
 
-console.log('✅ Copilot test runner loaded!');
+console.log('✅ Assistant test runner loaded!');
 console.log('Available commands:');
 console.log('  - quickCopilotTest()    : Run 3 quick tests');
 console.log('  - fullCopilotTest()     : Run complete test suite');

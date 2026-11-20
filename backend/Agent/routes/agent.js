@@ -870,7 +870,7 @@ router.get("/copilot/demo-queries", (req, res) => {
     res.status(200).json({ queries });
   } catch (error) {
     res.status(500).json({
-      error: error?.message || "Failed to load copilot demo queries.",
+      error: error?.message || "Failed to load assistant demo queries.",
     });
   }
 });
